@@ -1,0 +1,5 @@
+parking-detection-python/my_env/
+parking-project-frontend/node_modules/
+*.log
+*.env
+.DS_Store
