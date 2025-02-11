@@ -30,7 +30,6 @@ def get_db_connection(database=None):
             return None
 
 def initialize_database():
-    # 1) ensure DB exists
     conn = get_db_connection()
     if conn is None:
         print("Failed to connect to MySQL server.")
@@ -45,7 +44,7 @@ def initialize_database():
         cursor.close()
         conn.close()
 
-    # 2) create tables for local polygon storage
+    # 2) create tables for polygon storage
     conn = get_db_connection(DB_NAME)
     if conn is None:
         print(f"Failed connecting to DB={DB_NAME}")

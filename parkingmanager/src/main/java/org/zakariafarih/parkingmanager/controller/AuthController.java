@@ -48,7 +48,6 @@ public class AuthController {
         );
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        // Generate token using the full User object
         String jwt = tokenProvider.generateToken(userDetails.getUser());
         return ResponseEntity.ok(new JwtAuthenticationResponse(jwt, "Bearer"));
     }

@@ -102,7 +102,6 @@ public class ParkingSpotService {
             }
         }
 
-        // for spots not mentioned => do random or keep them
         for (ParkingSpot sp : all) {
             if (!occMap.containsKey(sp.getLabel())) {
                 boolean randomOcc = new Random().nextBoolean();
@@ -133,7 +132,6 @@ public class ParkingSpotService {
     public void saveImageCorners(List<SpotCornerDTO> cornerList) {
         for (SpotCornerDTO dto : cornerList) {
             ParkingSpot spot = getParkingSpotById(dto.getSpotId());
-            // convert corners to JSON
             try {
                 String cornersJson = new ObjectMapper().writeValueAsString(dto.getCorners());
                 spot.setImageCoordinates(cornersJson);

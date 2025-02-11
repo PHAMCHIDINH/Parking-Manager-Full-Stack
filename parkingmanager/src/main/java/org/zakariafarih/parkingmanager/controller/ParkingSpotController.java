@@ -23,11 +23,9 @@ public class ParkingSpotController {
     @Autowired
     private ParkingSpotService parkingSpotService;
 
-    // GET earliest numeric labels
     @GetMapping("/geo-ids")
     public ResponseEntity<List<String>> getNextGeoSpotIds(@RequestParam int limit) {
         List<ParkingSpot> all = parkingSpotService.getAllParkingSpots();
-        // filter only numeric labels
         List<String> numericLabels = new ArrayList<>();
         for (ParkingSpot sp : all) {
             String lbl = sp.getLabel();
@@ -35,10 +33,8 @@ public class ParkingSpotController {
                 numericLabels.add(lbl);
             }
         }
-        // sort ascending
         numericLabels.sort(Comparator.comparingInt(Integer::parseInt));
 
-        // limit them
         if (numericLabels.size() > limit) {
             numericLabels = numericLabels.subList(0, limit);
         }

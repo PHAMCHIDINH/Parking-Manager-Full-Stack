@@ -36,9 +36,8 @@ public class PasswordResetService {
 
         User user = userOpt.get();
 
-        // Check if a token already exists for this user
         Optional<PasswordResetToken> existingToken = tokenRepository.findByUser(user);
-        existingToken.ifPresent(tokenRepository::delete);  // Delete old token if exists
+        existingToken.ifPresent(tokenRepository::delete);
 
         // Generate new token
         String token = UUID.randomUUID().toString();
@@ -50,7 +49,6 @@ public class PasswordResetService {
 
         tokenRepository.save(resetToken);
 
-        // Construct a reset URL – adjust the URL as needed (this example uses the frontend port)
         String resetUrl = "http://localhost:5173/reset-password?token=" + token;
         String subject = "Password Reset Request";
         String message = "To reset your password, please click the following link:\n" + resetUrl;

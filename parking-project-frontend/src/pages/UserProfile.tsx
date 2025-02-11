@@ -16,9 +16,7 @@ import API from "../api";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-// Define your vehicle options
 const vehicleOptions = ["Car", "Van", "Taxi", "Bus", "Police", "Government"];
-// Define the backend base URL for static resources
 const baseURL = "http://localhost:8080";
 
 const UserProfile: React.FC = () => {
@@ -34,7 +32,6 @@ const UserProfile: React.FC = () => {
     const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Fetch profile data from backend when component mounts
     useEffect(() => {
         async function fetchProfile() {
             try {
@@ -43,7 +40,6 @@ const UserProfile: React.FC = () => {
                 setName(profileData.name || "");
                 setVehicleType(profileData.vehicleType || "");
                 setCarInfo(profileData.carInfo || "");
-                // If the returned URL is relative, prepend the base URL.
                 setProfileImagePreview(
                     profileData.profileImageUrl
                         ? profileData.profileImageUrl.startsWith("http")

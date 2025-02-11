@@ -41,11 +41,9 @@ public class OfferController {
     })
     @GetMapping
     public ResponseEntity<List<Offer>> getOffers(@RequestParam Long userId) {
-        // Retrieve the user from the database
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Fetch offers associated with the user
         List<Offer> offers = offerService.getOffersForUser(user);
         return ResponseEntity.ok(offers);
     }

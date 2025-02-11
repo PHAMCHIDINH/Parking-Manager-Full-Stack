@@ -8,7 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 public class CustomUserDetails implements UserDetails {
-    private final User user; // The original User object
+    private final User user;
     private final Long id;
     private final String email;
     private final String password;

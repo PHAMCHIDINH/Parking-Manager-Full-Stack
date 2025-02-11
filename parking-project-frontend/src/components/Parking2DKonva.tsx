@@ -1,12 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Stage, Layer, Line, Text } from "react-konva";
+import { Stage, Layer, Line } from "react-konva";
 import { useTheme } from "@mui/material/styles";
-import API from "../api";
 import { CircularProgress, Box } from "@mui/material";
+import API from "../api";
 
-/**
- * The shape of a single feature in the local GeoJSON
- */
 interface GeoJsonFeature {
     type: "Feature";
     geometry: {
@@ -14,30 +11,40 @@ interface GeoJsonFeature {
         coordinates: any;
     };
     properties: {
-        spot_id: string;
-        type: string;
+        spot_id?: string;
+        status?: string;
         occupied?: boolean;
-        [key: string]: any;
+        type?: string;
+        reservations?: Reservation[];
     };
 }
 
-/**
- * The shape of the local GeoJSON collection
- */
 interface GeoJson {
     type: "FeatureCollection";
     features: GeoJsonFeature[];
 }
 
-/**
- * Props for the Konva component
- */
-interface Parking2DKonvaProps {
+interface Reservation {
+    id: number;
+    startTime: string;
+    endTime: string;
+}
+
+export interface Parking2DKonvaProps {
     selectedSpotId?: string;
     onSpotSelect: (spotId: string) => void;
     width?: number;
     height?: number;
 }
+
+// Define status colors for different occupancy states.
+const STATUS_COLORS: Record<string, string> = {
+    available: "rgba(0,255,0,0.4)",
+    reserved: "rgba(255,165,0,0.4)",
+    occupied: "rgba(255,0,0,0.4)",
+    under_maintenance: "rgba(128,128,128,0.4)",
+    personal_use: "rgba(0,0,255,0.4)",
+};
 
 const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
                                                            selectedSpotId,
@@ -47,24 +54,17 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
                                                        }) => {
     const theme = useTheme();
 
-    // 1) Local GeoJSON data
     const [spotsData, setSpotsData] = useState<GeoJson | null>(null);
     const [linesData, setLinesData] = useState<GeoJson | null>(null);
     const [polysData, setPolysData] = useState<GeoJson | null>(null);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [geojsonLoaded, setGeojsonLoaded] = useState<boolean>(false);
 
-    // 2) Scale + offset for auto-fitting
-    const [scale, setScale] = useState(1);
-    const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const [scale, setScale] = useState<number>(1);
+    const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-    // 3) Loading state for initial geoJSON load
-    const [loading, setLoading] = useState(false);
-
-    // 4) Flag to know when geoJSON data has loaded
-    const [geojsonLoaded, setGeojsonLoaded] = useState(false);
-
-    // Load the local geoJSON files only once
     useEffect(() => {
-        (async () => {
+        const loadGeojson = async () => {
             setLoading(true);
             try {
                 const [spotsRes, linesRes, polysRes] = await Promise.all([
@@ -86,60 +86,116 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
             } finally {
                 setLoading(false);
             }
-        })();
+        };
+        loadGeojson();
     }, []);
 
-    // Set up a periodic occupancy fetch (runs only after geoJSON is loaded)
+    // 2) Once the GeoJSON is loaded, fetch occupancy and reservations
     useEffect(() => {
-        if (!geojsonLoaded) return; // Wait until local geoJSON is loaded
+        if (!geojsonLoaded || !spotsData) return;
 
-        const fetchOccupancy = async () => {
+        const fetchStatusesAndReservations = async () => {
             try {
+                // a) Get occupancy data from /parking
                 const resp = await API.get("/parking");
-                // resp.data is expected to be like:
-                // [ { label:"1", occupied:true }, { label:"2", occupied:false }, ... ]
-                const backendList = resp.data as Array<{ label: string; occupied: boolean }>;
-                const occupancyMap: Record<string, boolean> = {};
+                const backendList: Array<{
+                    label: string;
+                    status: string;
+                    occupied?: boolean;
+                    category?: string;
+                }> = resp.data;
+                const statusMap: Record<string, { status: string; occupied?: boolean; type?: string }> = {};
                 backendList.forEach((s) => {
-                    occupancyMap[s.label] = s.occupied;
+                    statusMap[s.label] = {
+                        status: s.status.toLowerCase(),
+                        occupied: s.occupied,
+                        type: s.category ? s.category.toLowerCase() : "normal",
+                    };
                 });
-                // Clone and update the spotsData (do not mutate state directly)
-                if (spotsData) {
-                    const cloned = { ...spotsData, features: [...spotsData.features] };
-                    cloned.features.forEach((feat) => {
-                        const sid = feat.properties.spot_id;
-                        feat.properties.occupied = occupancyMap[sid] ?? false;
-                    });
-                    setSpotsData(cloned);
+
+                // b) Gather all numeric spotIds from the local GeoJSON
+                const numericSpotIds: number[] = [];
+                spotsData.features.forEach((feat) => {
+                    const sid = feat.properties.spot_id;
+                    if (sid && /^\d+$/.test(sid)) {
+                        numericSpotIds.push(parseInt(sid, 10));
+                    }
+                });
+
+                // c) If numeric IDs exist, make a single call to the multi-spot endpoint.
+                let multiSpotReservations: Record<string, Reservation[]> = {};
+                if (numericSpotIds.length > 0) {
+                    const joined = numericSpotIds.join(",");
+                    const multiResp = await API.get(`/reservations/multi-spot?spotIds=${joined}`);
+                    multiSpotReservations = multiResp.data;
                 }
-            } catch (err) {
-                console.error("Error loading occupancy from backend:", err);
+
+                // d) Merge occupancy and reservations info into the local spotsData features.
+                const now = new Date();
+                const updatedFeatures: GeoJsonFeature[] = spotsData.features.map((feat) => {
+                    const label = feat.properties.spot_id || "";
+                    // default values:
+                    let newStatus = "available";
+                    let newOccupied = false;
+                    let newType = "normal";
+                    if (statusMap[label]) {
+                        newStatus = statusMap[label].status;
+                        newOccupied = !!statusMap[label].occupied;
+                        newType = statusMap[label].type || "normal";
+                    }
+
+                    let reservations: Reservation[] = [];
+                    const parsedId = parseInt(label, 10);
+                    if (!isNaN(parsedId) && multiSpotReservations[parsedId]) {
+                        reservations = multiSpotReservations[parsedId];
+                    }
+
+                    // Override status to 'reserved' if any reservation is still active.
+                    const hasFutureReservation = reservations.some((r) => new Date(r.endTime) > now);
+                    if (hasFutureReservation && newStatus === "available") {
+                        newStatus = "reserved";
+                    }
+
+                    return {
+                        ...feat,
+                        properties: {
+                            ...feat.properties,
+                            status: newStatus,
+                            occupied: newOccupied,
+                            type: newType,
+                            reservations,
+                        },
+                    };
+                });
+
+                // Update spotsData with the merged features.
+                setSpotsData((prev) => (prev ? { ...prev, features: updatedFeatures } : prev));
+            } catch (error) {
+                console.error("Error fetching occupancy/reservations:", error);
             }
         };
 
-        // Immediately fetch once, then set up an interval
-        fetchOccupancy();
-        const intervalId = setInterval(fetchOccupancy, 30000); // every 30 seconds
+        // Call the function only once
+        fetchStatusesAndReservations();
+    }, [geojsonLoaded]);
 
-        return () => clearInterval(intervalId);
-    }, [geojsonLoaded]); // run this effect only when geojsonLoaded changes
-
-    // 5) Compute bounding box => scale & offset
     useEffect(() => {
         if (!spotsData && !linesData && !polysData) return;
 
         const coords: [number, number][] = [];
-        function gatherAll(input: any) {
-            if (typeof input[0] === "number") {
+        const gatherAll = (input: any) => {
+            if (Array.isArray(input) && typeof input[0] === "number") {
                 coords.push(input as [number, number]);
-            } else {
+            } else if (Array.isArray(input)) {
                 input.forEach((sub: any) => gatherAll(sub));
             }
-        }
+        };
+
         [spotsData, linesData, polysData].forEach((fc) => {
-            if (!fc || !fc.features) return;
+            if (!fc?.features) return;
             fc.features.forEach((feat) => gatherAll(feat.geometry.coordinates));
         });
+
         if (coords.length === 0) return;
 
         const xs = coords.map((c) => c[0]);
@@ -148,45 +204,56 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
         const maxX = Math.max(...xs);
         const minY = Math.min(...ys);
         const maxY = Math.max(...ys);
-        const dataWidth = maxX - minX;
-        const dataHeight = maxY - minY;
+
+        const dataWidth = maxX - minX || 1;
+        const dataHeight = maxY - minY || 1;
         const scaleX = width / dataWidth;
         const scaleY = height / dataHeight;
         const newScale = Math.min(scaleX, scaleY) * 0.9;
         const offsetX = -minX * newScale + (width - dataWidth * newScale) / 2;
-        const offsetY = +maxY * newScale + (height - dataHeight * newScale) / 2;
+        const offsetY = maxY * newScale + (height - dataHeight * newScale) / 2;
+
         setScale(newScale);
         setOffset({ x: offsetX, y: offsetY });
     }, [spotsData, linesData, polysData, width, height]);
 
-    if (loading)
+    if (loading) {
         return (
             <Box
                 sx={{
+                    width,
+                    height,
                     display: "flex",
                     justifyContent: "center",
                     alignItems: "center",
-                    height: "100%",
-                    width: "100%",
                 }}
             >
                 <CircularProgress />
             </Box>
         );
+    }
 
-    // 6) Render Parking Polygons
-    function renderParkingPolygons() {
+    // Helper: get fill color for a spot using its status
+    function getFillColor(spotStatus?: string, isSelected?: boolean) {
+        if (isSelected) return "rgba(255,255,0,0.6)";
+        if (!spotStatus) return "rgba(0,255,0,0.4)";
+        const c = STATUS_COLORS[spotStatus.toLowerCase()];
+        return c || "rgba(0,255,0,0.4)";
+    }
+
+    // Render polygons
+    function renderPolygons() {
         if (!polysData?.features) return null;
-        return polysData.features.map((feat, i) => {
+        return polysData.features.map((feat, idx) => {
             if (feat.geometry.type !== "Polygon") return null;
             const ring = feat.geometry.coordinates[0];
-            const points = ring.map(([xx, yy]: number[]) => [
-                xx * scale + offset.x,
-                -yy * scale + offset.y,
+            const points = ring.map((pt: number[]) => [
+                pt[0] * scale + offset.x,
+                -pt[1] * scale + offset.y,
             ]);
             return (
                 <Line
-                    key={`poly-${i}`}
+                    key={`poly-${idx}`}
                     points={points.flat()}
                     closed
                     fill="#ccc"
@@ -197,70 +264,60 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
         });
     }
 
-    // 7) Render Lines
+    // Render lines
     function renderLines() {
         if (!linesData?.features) return null;
-        return linesData.features.map((feat, i) => {
+        return linesData.features.map((feat, idx) => {
             if (feat.geometry.type !== "LineString") return null;
-            const pts = feat.geometry.coordinates.map(([xx, yy]: number[]) => [
-                xx * scale + offset.x,
-                -yy * scale + offset.y,
+            const pts = feat.geometry.coordinates.map((pt: number[]) => [
+                pt[0] * scale + offset.x,
+                -pt[1] * scale + offset.y,
             ]);
             return (
-                <Line
-                    key={`line-${i}`}
-                    points={pts.flat()}
-                    stroke="green"
-                    strokeWidth={1}
-                />
+                <Line key={`line-${idx}`} points={pts.flat()} stroke="green" strokeWidth={1} />
             );
         });
     }
 
-    // 8) Render Parking Spots
     function renderSpots() {
         if (!spotsData?.features) return null;
-        return spotsData.features.map((feat) => {
+        return spotsData.features.map((feat, idx) => {
             const spotId = feat.properties.spot_id || "";
-            const isOccupied = !!feat.properties.occupied;
+            const status = feat.properties.status || "available";
             const isSelected = spotId === selectedSpotId;
-            let fillColor = isOccupied ? "rgba(255,0,0,0.4)" : "rgba(0,255,0,0.4)";
-            if (isSelected) fillColor = "rgba(255,165,0,0.5)";
-            const strokeColor = isSelected ? theme.palette.secondary.main : "gray";
+
             if (feat.geometry.type === "Polygon") {
                 const ring = feat.geometry.coordinates[0];
-                const points = ring.map(([xx, yy]: number[]) => [
-                    xx * scale + offset.x,
-                    -yy * scale + offset.y,
+                const points = ring.map((pt: number[]) => [
+                    pt[0] * scale + offset.x,
+                    -pt[1] * scale + offset.y,
                 ]);
                 return (
-                    <React.Fragment key={`spot-${spotId}`}>
-                        <Line
-                            points={points.flat()}
-                            closed
-                            fill={fillColor}
-                            stroke={strokeColor}
-                            strokeWidth={2}
-                            onClick={() => onSpotSelect(spotId)}
-                        />
-                    </React.Fragment>
+                    <Line
+                        key={`spot-poly-${spotId}-${idx}`}
+                        points={points.flat()}
+                        closed
+                        fill={isSelected ? "rgba(255,255,0,0.6)" : getFillColor(status)}
+                        stroke={isSelected ? "yellow" : "gray"}
+                        strokeWidth={2}
+                        onClick={() => onSpotSelect(spotId)}
+                    />
                 );
-            }
-            if (feat.geometry.type === "MultiPolygon") {
-                const multi: number[][][] = feat.geometry.coordinates as number[][][];
-                return multi.map((polyCoords, mpIndex) => {
-                    const ring = polyCoords[0];
-                    const points = ring.map(([xx, yy]: number[]) => [
-                        xx * scale + offset.x,
-                        -yy * scale + offset.y,
+            } else if (feat.geometry.type === "MultiPolygon") {
+                const multi = feat.geometry.coordinates as number[][][];
+                return multi.map((poly, mpIdx) => {
+                    const ring = poly[0];
+                    const points = ring.map((pt: number[]) => [
+                        pt[0] * scale + offset.x,
+                        -pt[1] * scale + offset.y,
                     ]);
                     return (
                         <Line
-                            key={`spot-${spotId}-mpoly-${mpIndex}`}
+                            key={`spot-mpoly-${spotId}-${idx}-${mpIdx}`}
                             points={points.flat()}
                             closed
-                            fill={fillColor}
-                            stroke={strokeColor}
+                            fill={isSelected ? "rgba(255,255,0,0.6)" : getFillColor(status)}
+                            stroke={isSelected ? "yellow" : "gray"}
                             strokeWidth={2}
                             onClick={() => onSpotSelect(spotId)}
                         />
@@ -274,10 +331,10 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
     return (
         <Stage width={width} height={height} style={{ background: theme.palette.grey[300] }}>
             <Layer>
-                {renderParkingPolygons()}
+                {renderPolygons()}
                 {renderLines()}
-                {renderSpots()}
             </Layer>
+            <Layer>{renderSpots()}</Layer>
         </Stage>
     );
 };

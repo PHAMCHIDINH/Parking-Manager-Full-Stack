@@ -25,9 +25,9 @@ public class User {
     private Role role;
 
     private String name;
-    private String profileImageUrl;          // URL/path of the profile picture
-    private String vehicleType;              // e.g., Car, Van, etc.
-    private String licensePlateImageUrl;     // URL/path of the license plate image
+    private String profileImageUrl;
+    private String vehicleType;
+    private String licensePlateImageUrl;
     @Column(length = 1000)
-    private String carInfo;                  // Additional info about the car
+    private String carInfo;
 }

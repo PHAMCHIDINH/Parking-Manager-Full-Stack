@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Dialog,
     DialogTitle,
@@ -9,207 +9,213 @@ import {
     Tabs,
     Tab,
     Typography,
-    useTheme,
     List,
     ListItem,
-    IconButton
+    IconButton,
+    Divider
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import moment, { Moment } from "moment";
-import { SpotRecord } from "../types";
-import VehicleTypeSelector from "./VehicleTypeSelector";
+import moment from "moment";
+import API from "../api";
 import WeekPicker, { TimeInterval } from "./WeekPicker";
-import SpotUsageHistory, { UsageRecord } from "./SpotUsageHistory"; // <--- Import new component
+import VehicleTypeSelector from "./VehicleTypeSelector";
+import { useAuth } from "../contexts/AuthContext";
+import { SpotRecord } from "../types";
 
-interface TabPanelProps {
-    children?: React.ReactNode;
-    index: number;
-    value: number;
-}
-function TabPanel({ children, value, index }: TabPanelProps) {
-    return (
-        <div role="tabpanel" hidden={value !== index}>
-            {value === index && <Box sx={{ p: 2 }}>{children}</Box>}
-        </div>
-    );
+/** The shape of a single reservation from backend. */
+interface ReservationData {
+    id: number;
+    user: { id: number; email: string };
+    parkingSpot: { id: number; label: string };
+    startTime: string;
+    endTime: string;
 }
 
 interface SpotDetailsDialogProps {
     open: boolean;
     onClose: () => void;
     spot: SpotRecord | null;
+    isAdmin?: boolean;
 }
 
-// Example usage history data
-const placeholderUsageData: UsageRecord[] = [
-    {
-        id: 1,
-        user: "John Doe",
-        start: new Date(2025, 1, 10, 8, 0),
-        end: new Date(2025, 1, 10, 12, 0),
-        color: "#2196F3",
-    },
-    {
-        id: 2,
-        user: "Jane Smith",
-        start: new Date(2025, 1, 9, 9, 30),
-        end: new Date(2025, 1, 9, 11, 30),
-        color: "#F44336",
-    },
-    {
-        id: 3,
-        user: "Alice Brown",
-        start: new Date(2025, 1, 8, 14, 0),
-        end: new Date(2025, 1, 8, 15, 0),
-        color: "#4CAF50",
-    },
-];
+/** Simple tab panel helper */
+function TabPanel(props: { children?: React.ReactNode; value: number; index: number }) {
+    const { children, value, index } = props;
+    return <div hidden={value !== index}>{value === index && <Box sx={{ p: 2 }}>{children}</Box>}</div>;
+}
 
-const generateCurrentWeek = (): Moment[] => {
-    const start = moment().startOf("isoWeek"); // Monday
-    return Array.from({ length: 7 }, (_, i) => start.clone().add(i, "days"));
-};
-
-const SpotDetailsDialog: React.FC<SpotDetailsDialogProps> = ({ open, onClose, spot }) => {
-    const theme = useTheme();
+const SpotDetailsDialog: React.FC<SpotDetailsDialogProps> = ({
+                                                                 open,
+                                                                 onClose,
+                                                                 spot,
+                                                                 isAdmin = false
+                                                             }) => {
+    const { user } = useAuth();
     const [tabValue, setTabValue] = useState(0);
+    const [reservations, setReservations] = useState<ReservationData[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Vehicle type
-    const [selectedVehicle, setSelectedVehicle] = useState<string>("Car");
-
-    // Reservation intervals from WeekPicker
+    // For creating new reservations
     const [selectedIntervals, setSelectedIntervals] = useState<TimeInterval[]>([]);
+
+    useEffect(() => {
+        if (spot && open) {
+            fetchSpotHistory(spot.spot_id);
+        }
+    }, [spot, open]);
+
+    /** Load existing reservations for this spot from our new endpoint. */
+    const fetchSpotHistory = async (spotId: string) => {
+        setError(null);
+        setLoadingHistory(true);
+        try {
+            const resp = await API.get(`/reservations/spot-history/${spotId}`);
+            setReservations(resp.data);
+        } catch (err) {
+            console.error("Failed to load spot history:", err);
+            setError("Could not load reservation history");
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
 
     const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
     };
 
-    const handleReserve = () => {
-        console.log("Reserving spot:", {
-            spotId: spot?.spot_id,
-            vehicleType: selectedVehicle,
-            intervals: selectedIntervals.map((interval) => ({
-                start: interval.start.toDate(),
-                end: interval.end.toDate(),
-            })),
-        });
+    /** Create reservations from the selected intervals. */
+    const handleReserve = async () => {
+        if (!spot) return;
+        if (selectedIntervals.length === 0) return;
+
+        for (const interval of selectedIntervals) {
+            try {
+                await API.post("/reservations", {
+                    parkingSpotId: Number(spot.spot_id),
+                    startTime: interval.start.toISOString(),
+                    endTime: interval.end.toISOString(),
+                });
+            } catch (e) {
+                console.error("Failed to create reservation", e);
+            }
+        }
+        // Clear intervals, refresh
         setSelectedIntervals([]);
-        onClose();
+        fetchSpotHistory(spot.spot_id);
+    };
+
+    /** Cancel an existing reservation. If admin => force-cancel endpoint. */
+    const handleCancelReservation = async (reservationId: number) => {
+        try {
+            if (isAdmin) {
+                await API.delete(`/reservations/admin/force-cancel/${reservationId}`);
+            } else {
+                await API.delete(`/reservations/${reservationId}`);
+            }
+            // Refresh
+            if (spot) {
+                fetchSpotHistory(spot.spot_id);
+            }
+        } catch (err) {
+            console.error("Failed to cancel reservation", err);
+        }
     };
 
     if (!spot) return null;
-
-    const weekRange = generateCurrentWeek();
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
             <DialogTitle>Spot Details - {spot.spot_id}</DialogTitle>
             <DialogContent>
-                <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
+                <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
                     <Tabs value={tabValue} onChange={handleTabChange}>
-                        <Tab label="Spot Type" />
                         <Tab label="Reservation" />
                         <Tab label="Usage History" />
-                        <Tab label="Extra Info" />
+                        <Tab label="Spot Type" />
                     </Tabs>
                 </Box>
 
-                {/* TAB 0: Spot Type */}
+                {/* TAB 0: Reservation */}
                 <TabPanel value={tabValue} index={0}>
                     <Typography variant="body2" sx={{ mb: 2 }}>
-                        Choose the vehicle type for this spot by clicking an icon below.
+                        Reserve this spot by selecting intervals below:
                     </Typography>
-                    <VehicleTypeSelector
-                        value={selectedVehicle}
-                        onChange={(newType) => setSelectedVehicle(newType)}
-                    />
-                </TabPanel>
-
-                {/* TAB 1: Reservation */}
-                <TabPanel value={tabValue} index={1}>
-                    <Typography variant="body2" sx={{ mb: 2 }}>
-                        Reserve this spot. Select one or multiple available time frames below.
-                    </Typography>
-                    <Box
-                        sx={{
-                            border: `1px solid ${theme.palette.divider}`,
-                            borderRadius: 1,
-                            p: 2,
-                            minHeight: 400,
-                        }}
-                    >
-                        <WeekPicker
-                            currRange={weekRange}
-                            busyIntervals={[]} // your busy intervals
-                            onSelectionsChange={(selections: TimeInterval[]) =>
-                                setSelectedIntervals(selections)
-                            }
-                        />
-                    </Box>
-                    <Box sx={{ mt: 2 }}>
-                        <Typography variant="subtitle2">Selected Intervals:</Typography>
-                        {selectedIntervals.length === 0 ? (
-                            <Typography variant="body2" color="text.secondary">
-                                No intervals selected
-                            </Typography>
-                        ) : (
-                            <List dense>
-                                {selectedIntervals.map((interval, i) => (
-                                    <ListItem
-                                        key={`${interval.start.toISOString()}-${interval.end.toISOString()}`}
-                                        secondaryAction={
-                                            <IconButton
-                                                edge="end"
-                                                onClick={() => {
-                                                    const newIntervals = [...selectedIntervals];
-                                                    newIntervals.splice(i, 1);
-                                                    setSelectedIntervals(newIntervals);
-                                                }}
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        }
-                                    >
-                                        <Typography variant="body2">
-                                            {interval.start.format("HH:mm")} - {interval.end.format("HH:mm")}
-                                        </Typography>
-                                    </ListItem>
-                                ))}
-                            </List>
-                        )}
-                    </Box>
-                    <Box sx={{ mt: 2 }}>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            disabled={selectedIntervals.length === 0}
-                            onClick={handleReserve}
-                        >
+                    <WeekPicker onIntervalsChange={(intervals) => setSelectedIntervals(intervals)} />
+                    {selectedIntervals.length > 0 && (
+                        <Button sx={{ mt: 2 }} variant="contained" onClick={handleReserve}>
                             Reserve
                         </Button>
-                    </Box>
+                    )}
                 </TabPanel>
 
-                {/* TAB 2: Usage History */}
+                {/* TAB 1: Usage History */}
+                <TabPanel value={tabValue} index={1}>
+                    {loadingHistory ? (
+                        <Typography>Loading...</Typography>
+                    ) : error ? (
+                        <Typography color="error">{error}</Typography>
+                    ) : (
+                        <>
+                            <Typography variant="subtitle2">Reservation History</Typography>
+                            <Divider sx={{ mb: 2 }} />
+                            {reservations.length === 0 ? (
+                                <Typography>No reservations found for this spot.</Typography>
+                            ) : (
+                                <List>
+                                    {reservations.map((r) => {
+                                        const start = moment(r.startTime);
+                                        const end = moment(r.endTime);
+                                        const isOwnedByUser = user && String(user.id) === String(r.user.id);
+                                        return (
+                                            <React.Fragment key={r.id}>
+                                                <ListItem
+                                                    secondaryAction={
+                                                        (isOwnedByUser || isAdmin) && (
+                                                            <IconButton onClick={() => handleCancelReservation(r.id)}>
+                                                                <DeleteIcon />
+                                                            </IconButton>
+                                                        )
+                                                    }
+                                                >
+                                                    <Box>
+                                                        <Typography variant="body2">
+                                                            Reservation #{r.id} by {r.user.email}
+                                                        </Typography>
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            {start.format("YYYY-MM-DD HH:mm")} - {end.format("YYYY-MM-DD HH:mm")}
+                                                        </Typography>
+                                                    </Box>
+                                                </ListItem>
+                                                <Divider />
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </List>
+                            )}
+                        </>
+                    )}
+                </TabPanel>
+
+                {/* TAB 2: Spot Type */}
                 <TabPanel value={tabValue} index={2}>
-                    <SpotUsageHistory usageData={placeholderUsageData} />
-                </TabPanel>
-
-                {/* TAB 3: Extra Info */}
-                <TabPanel value={tabValue} index={3}>
                     <Typography variant="body2" sx={{ mb: 2 }}>
-                        Here you can display additional details or logs:
+                        Current category: <strong>{spot.type}</strong>
                     </Typography>
-                    <ul style={{ margin: 0, paddingLeft: "1em" }}>
-                        <li>Maintenance logs</li>
-                        <li>Security notes</li>
-                        <li>Any other metadata</li>
-                    </ul>
+                    <Typography variant="body2" sx={{ mb: 2 }}>
+                        If you're an admin, you might be able to update this (not fully implemented):
+                    </Typography>
+                    <VehicleTypeSelector
+                        value={spot.type || "Car"}
+                        onChange={(newType) => {
+                            console.log("Change type to:", newType);
+                            // If needed, do an API PUT to update the spot's category
+                        }}
+                    />
                 </TabPanel>
             </DialogContent>
-
-            <DialogActions sx={{ p: 2 }}>
-                <Button onClick={onClose} color="inherit">
+            <DialogActions>
+                <Button color="inherit" onClick={onClose}>
                     Close
                 </Button>
             </DialogActions>

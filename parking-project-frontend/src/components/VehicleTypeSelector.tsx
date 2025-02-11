@@ -22,7 +22,6 @@ const VEHICLE_TYPES = [
     { label: "Government", icon: <EmojiFlagsIcon /> },
 ];
 
-// A styled wrapper for each icon
 const IconContainer = styled(Box)<{ selected?: boolean }>(({ theme, selected }) => ({
     display: "flex",
     flexDirection: "column",

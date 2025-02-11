@@ -8,6 +8,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import UserProfile from "./pages/UserProfile";
+import MyReservationsPage from "./pages/MyReservationPage.tsx";
 
 const AppRouter: React.FC = () => {
     return (
@@ -37,6 +38,14 @@ const AppRouter: React.FC = () => {
                 element={
                     <ProtectedRoute requiredRole="ROLE_USER">
                         <UserDashboard />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/user/my-reservations"
+                element={
+                    <ProtectedRoute requiredRole="ROLE_USER">
+                        <MyReservationsPage />
                     </ProtectedRoute>
                 }
             />

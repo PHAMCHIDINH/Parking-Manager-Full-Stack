@@ -11,7 +11,6 @@ import {
 import { DatePicker } from "@mui/x-date-pickers";
 import dayjs, { Dayjs } from "dayjs";
 
-// A single usage record
 export interface UsageRecord {
     id: number;
     user: string;
@@ -20,17 +19,14 @@ export interface UsageRecord {
     color?: string;
 }
 
-// Props for the SpotUsageHistory component
 interface SpotUsageHistoryProps {
     usageData: UsageRecord[];
 }
 
 const SpotUsageHistory: React.FC<SpotUsageHistoryProps> = ({ usageData }) => {
-    // Start and End Date filters using Dayjs
     const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().subtract(7, "days"));
     const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
 
-    // Filter usageData based on startDate and endDate
     const filteredHistory = useMemo(() => {
         if (!startDate || !endDate) return usageData;
         return usageData.filter((record) => {

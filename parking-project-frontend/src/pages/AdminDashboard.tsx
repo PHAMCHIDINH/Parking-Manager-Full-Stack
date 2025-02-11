@@ -1,130 +1,184 @@
 import React, { useEffect, useState } from "react";
-import { AppBar, Toolbar, Button, Box } from "@mui/material";
-import API from "../api";
+import {
+    AppBar,
+    Toolbar,
+    Button,
+    Box,
+    Avatar,
+    Typography,
+    IconButton,
+    FormControlLabel,
+    Switch,
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import LeftPanel from "../components/LeftPanel";
+import API from "../api";
 import MainArea from "../components/MainArea";
 import RightPanel from "../components/RightPanel";
-import ToggleButton from "../components/ToggleButton";
 import { SpotRecord } from "../types";
 
-const AdminDashboard: React.FC = () => {
-    const { logout } = useAuth();
+import { Client, Message } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
+
+const baseURL = "http://localhost:8080";
+
+/**
+ * Convert raw spot from GET /parking to SpotRecord
+ */
+function toSpotRecord(spot: any): SpotRecord {
+    return {
+        spot_id: spot.label,
+        type: spot.category,
+        occupied: spot.occupied,
+        geometry: spot.coordinates ? JSON.parse(spot.coordinates) : undefined,
+    };
+}
+
+export default function AdminDashboard() {
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+
     const [spots, setSpots] = useState<SpotRecord[]>([]);
-    const [selectedSpotId, setSelectedSpotId] = useState<string | undefined>(undefined);
-    const [isLoading, setIsLoading] = useState(true);
+    const [selectedSpotId, setSelectedSpotId] = useState<string | undefined>();
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // filters
     const [filterText, setFilterText] = useState("");
     const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-    const [leftTab, setLeftTab] = useState(0);
-    const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-    const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+    const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
 
+    // for live occupancy
+    const [liveOccupancy, setLiveOccupancy] = useState(false);
+
+    const profileImageUrl =
+        user?.profileImageUrl && !user.profileImageUrl.startsWith("http")
+            ? baseURL + user.profileImageUrl
+            : user?.profileImageUrl;
+
+    // load all spots once
     useEffect(() => {
-        const loadSpots = async () => {
+        (async () => {
             setIsLoading(true);
             try {
-                const response = await API.get("/parking");
-                const spotsList: SpotRecord[] = response.data.map((spot: any) => ({
-                    spot_id: spot.label,
-                    type: spot.category,
-                    geometry: spot.coordinates ? JSON.parse(spot.coordinates) : undefined,
-                    occupied: spot.occupied,
-                }));
-                setSpots(spotsList);
+                const resp = await API.get("/parking");
+                const data = resp.data as any[];
+                setSpots(data.map(toSpotRecord));
             } catch (err) {
                 console.error("Error loading spots:", err);
-                setError("Failed to load parking spots");
+                setError("Failed to load spots");
             } finally {
                 setIsLoading(false);
             }
-        };
-        loadSpots();
+        })();
     }, []);
+
+    // optional WebSocket
+    useEffect(() => {
+        if (!liveOccupancy) return;
+
+        const socket = new SockJS("http://localhost:8080/ws");
+        const stompClient = new Client({
+            webSocketFactory: () => socket as any,
+            onConnect: () => {
+                console.log("[AdminDashboard] STOMP connected!");
+                stompClient.subscribe("/topic/parking-updates", (msg: Message) => {
+                    const payload = JSON.parse(msg.body);
+                    if (Array.isArray(payload)) {
+                        setSpots(payload.map(toSpotRecord));
+                    } else {
+                        const updated = toSpotRecord(payload);
+                        setSpots((prev) => {
+                            const idx = prev.findIndex((s) => s.spot_id === updated.spot_id);
+                            if (idx >= 0) {
+                                const copy = [...prev];
+                                copy[idx] = updated;
+                                return copy;
+                            }
+                            return [...prev, updated];
+                        });
+                    }
+                });
+            },
+        });
+        stompClient.activate();
+
+        return () => {
+            stompClient.deactivate();
+        };
+    }, [liveOccupancy]);
 
     const handleSpotSelect = (spotId: string) => {
         setSelectedSpotId(spotId);
     };
 
+    const handleLogout = () => {
+        logout();
+    };
+
+    // filter logic
+    const filteredSpots = spots.filter((spot) => {
+        const matchesText = spot.spot_id.toLowerCase().includes(filterText.toLowerCase());
+        const matchesType =
+            selectedTypes.length === 0 || selectedTypes.includes(spot.type.toLowerCase());
+        return matchesText && matchesType;
+    });
+
     return (
         <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-            {/* Fixed Top Bar */}
             <AppBar position="fixed">
                 <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-                    <Box sx={{ typography: "h6" }}>Admin Dashboard</Box>
-                    <Button color="inherit" onClick={logout}>
-                        Logout
-                    </Button>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <IconButton onClick={() => navigate("/user/profile")}>
+                            <Avatar src={profileImageUrl || ""} alt={user?.name || "Admin"} />
+                        </IconButton>
+                        <Typography variant="h6">Admin Dashboard</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={liveOccupancy}
+                                    onChange={() => setLiveOccupancy(!liveOccupancy)}
+                                    color="secondary"
+                                />
+                            }
+                            label="Live Occupancy"
+                        />
+                        <Button color="inherit" onClick={handleLogout}>
+                            Logout
+                        </Button>
+                    </Box>
                 </Toolbar>
             </AppBar>
-
             <Toolbar />
 
-            {/* Content below the AppBar */}
-            <Box sx={{
-                flex: 1,
-                display: "flex",
-                overflow: "hidden",
-                position: "relative",
-                height: "calc(100vh - 64px)"
-            }}>
-                {/* Left Panel */}
-                <Box sx={{
-                    width: 360,
-                    flexShrink: 0,
-                    position: "relative",
-                    height: "100%",
-                    overflow: "auto"
-                }}>
-                    <LeftPanel
-                        isOpen={isLeftPanelOpen}
-                        leftTab={leftTab}
-                        onTabChange={(e, newValue) => setLeftTab(newValue)}
-                    />
-                    <ToggleButton
-                        side="left"
-                        isOpen={isLeftPanelOpen}
-                        onToggle={() => setIsLeftPanelOpen((prev) => !prev)}
-                    />
-                </Box>
+            <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-                {/* Main Area */}
-                <Box sx={{ flex: 1, overflow: "auto", height: "100%" }}>
+                {/* Main */}
+                <Box sx={{ flex: 1, overflow: "auto" }}>
                     <MainArea
+                        spots={filteredSpots}
                         selectedSpotId={selectedSpotId}
                         onSpotSelect={handleSpotSelect}
                     />
                 </Box>
 
-                {/* Right Panel */}
-                <Box sx={{
-                    width: 360,
-                    flexShrink: 0,
-                    position: "relative",
-                    height: "100%",
-                    overflow: "auto"
-                }}>
+                {/* Right Panel, pass isAdmin as well */}
+                <Box sx={{ width: 360, flexShrink: 0, height: "100%", overflow: "auto" }}>
                     <RightPanel
-                        isOpen={isRightPanelOpen}
-                        spots={spots}
+                        isOpen={true}
+                        spots={filteredSpots}
                         selectedSpotId={selectedSpotId}
                         filterText={filterText}
-                        selectedTypes={selectedTypes}
                         onFilterChange={(e) => setFilterText(e.target.value)}
-                        onSelectedTypesChange={setSelectedTypes}
                         onSpotSelect={handleSpotSelect}
                         isLoading={isLoading}
                         error={error}
-                    />
-                    <ToggleButton
-                        side="right"
-                        isOpen={isRightPanelOpen}
-                        onToggle={() => setIsRightPanelOpen((prev) => !prev)}
+                        isAdmin
                     />
                 </Box>
             </Box>
         </Box>
     );
-};
-
-export default AdminDashboard;
+}

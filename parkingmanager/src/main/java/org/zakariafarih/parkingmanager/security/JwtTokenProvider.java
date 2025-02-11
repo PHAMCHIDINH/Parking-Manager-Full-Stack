@@ -53,7 +53,6 @@ public class JwtTokenProvider {
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
-        // Here the subject is the user id (as a string)
         return Long.parseLong(claims.getSubject());
     }
 

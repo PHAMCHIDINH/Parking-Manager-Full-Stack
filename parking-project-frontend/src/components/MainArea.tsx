@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, styled } from '@mui/material';
 import Parking2DKonva from './Parking2DKonva';
+import { SpotRecord } from '../types';
 
 const KonvaHeader = styled(Box)(({ theme }) => ({
     marginBottom: theme.spacing(2),
@@ -10,7 +11,6 @@ const KonvaHeader = styled(Box)(({ theme }) => ({
     boxShadow: theme.shadows[2],
 }));
 
-// Increase the overall wrapper size
 const KanvaWrapper = styled(Box)(({ theme }) => ({
     width: 1200,
     height: 800,
@@ -22,19 +22,23 @@ const KanvaWrapper = styled(Box)(({ theme }) => ({
     justifyContent: 'center',
 }));
 
-// Increase the container that holds the Konva canvas
 const StyledKonvaContainer = styled(Box)(({ theme }) => ({
-    width: 1160, // Slightly smaller than KanvaWrapper to account for padding/borders
+    width: 1160,
     height: 760,
     border: `2px solid ${theme.palette.divider}`,
 }));
 
 interface MainAreaProps {
+    spots: SpotRecord[];
     selectedSpotId?: string;
     onSpotSelect: (spotId: string) => void;
 }
 
-const MainArea: React.FC<MainAreaProps> = ({ selectedSpotId, onSpotSelect }) => {
+const MainArea: React.FC<MainAreaProps> = ({
+                                               spots,
+                                               selectedSpotId,
+                                               onSpotSelect
+                                           }) => {
     return (
         <Box
             sx={{
@@ -49,12 +53,13 @@ const MainArea: React.FC<MainAreaProps> = ({ selectedSpotId, onSpotSelect }) => 
         >
             <KonvaHeader>
                 <Typography variant="subtitle1" color="text.primary">
-                    Use the side panels to filter/select parking spots and assign statuses/types.
+                    Select or filter parking spots using the side panels, or click on a spot in the map.
                 </Typography>
             </KonvaHeader>
             <KanvaWrapper>
                 <StyledKonvaContainer>
                     <Parking2DKonva
+                        spots={spots}
                         selectedSpotId={selectedSpotId}
                         onSpotSelect={onSpotSelect}
                         width={1160}

@@ -1,19 +1,13 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode";
 import API from "../api";
-
-interface DecodedToken {
-    sub: string;
-    email: string;
-    role: string;
-    exp: number;
-}
 
 interface AuthUser {
     id: string;
     email: string;
-    role: string;   // "ROLE_ADMIN", "ROLE_USER", etc.
+    role: string;   // "ROLE_ADMIN", "ROLE_USER", ...
+    name?: string;
+    profileImageUrl?: string;
 }
 
 interface AuthContextType {
@@ -22,6 +16,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string) => Promise<void>;
     logout: () => void;
+    refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,44 +26,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
     const navigate = useNavigate();
 
-    const decodeAndSetUser = (accessToken: string) => {
+    /** Fetch the user’s profile from /api/user/profile and store it in context. */
+    const refreshUserProfile = async () => {
         try {
-            const decoded = jwtDecode<DecodedToken>(accessToken);
-            setUser({
-                id: decoded.sub,
-                email: decoded.email,
-                role: decoded.role,
-            });
-        } catch (error) {
-            console.error("Failed to decode token:", error);
-            setUser(null);
+            const resp = await API.get("/user/profile");
+            const profileData = resp.data;
+            setUser((prev) =>
+                prev
+                    ? { ...prev, ...profileData, id: String(profileData.id) }
+                    : {
+                        id: String(profileData.id),
+                        email: profileData.email,
+                        role: profileData.role,
+                        name: profileData.name,
+                        profileImageUrl: profileData.profileImageUrl,
+                    }
+            );
+        } catch (err) {
+            console.error("Failed to refresh user profile", err);
         }
     };
 
     const login = async (email: string, password: string) => {
         try {
             const resp = await API.post("/auth/login", { email, password });
-            const { accessToken } = resp.data; // The backend returns {accessToken, tokenType}
+            const { accessToken } = resp.data; // The backend returns { accessToken, tokenType }
             localStorage.setItem("token", accessToken);
             setToken(accessToken);
-            decodeAndSetUser(accessToken);
 
-            const decoded = jwtDecode<DecodedToken>(accessToken);
-            // If user is admin => go /admin, else /user
-            if (decoded.role === "ROLE_ADMIN") {
+            API.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+            await refreshUserProfile();
+
+            // Navigate based on role
+            if (user?.role === "ROLE_ADMIN") {
                 navigate("/admin");
             } else {
                 navigate("/user");
             }
         } catch (error) {
             console.error("Login error:", error);
-            throw error; // let caller show user-friendly message
+            throw error;
         }
     };
 
     const register = async (email: string, password: string) => {
         try {
-            // Sign up => automatically login
             await API.post("/auth/signup", { email, password });
             await login(email, password);
         } catch (err) {
@@ -87,18 +89,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const storedToken = localStorage.getItem("token");
         if (storedToken) {
-            try {
-                decodeAndSetUser(storedToken);
-                setToken(storedToken);
-            } catch (err) {
-                console.error("Invalid stored token => logging out", err);
-                logout();
-            }
+            setToken(storedToken);
+            // Attempt to refresh user profile
+            API.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
+            refreshUserProfile();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, token, login, register, logout }}>
+        <AuthContext.Provider
+            value={{ user, token, login, register, logout, refreshUserProfile }}
+        >
             {children}
         </AuthContext.Provider>
     );

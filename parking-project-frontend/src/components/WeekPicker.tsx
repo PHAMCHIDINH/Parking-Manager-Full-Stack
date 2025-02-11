@@ -14,24 +14,20 @@ import moment, { Moment } from 'moment';
 
 /** Represents a single selected interval. */
 export interface TimeInterval {
-    start: Moment;
-    end: Moment;
+    start: dayjs.Dayjs;
+    end: dayjs.Dayjs;
 }
 
 /** Represents a busy/unavailable interval. */
 export interface BusyInterval {
-    start: Moment;
-    end: Moment;
+    start: dayjs.Dayjs;
+    end: dayjs.Dayjs;
 }
 
 interface WeekPickerProps {
-    /** Called whenever the user changes the selected intervals. */
-    onIntervalsChange?: (intervals: TimeInterval[]) => void;
-    /** Any intervals that should be treated as "busy" (unselectable). */
+    onIntervalsChange: (intervals: TimeInterval[]) => void;
     busyIntervals?: BusyInterval[];
-    /** The earliest hour of the day to show (0 = midnight, 8 = 8 AM, etc.). */
     startHour?: number;
-    /** The latest hour of the day to show (24 = midnight, 20 = 8 PM, etc.). */
     endHour?: number;
 }
 

@@ -98,8 +98,8 @@ def define_parking_spots_via_gui(image_path, spots):
 
     defined_corners = {}  # map <spotId> -> list of (x,y) corners
     current_points = []
-    current_index = 0  # which numeric spot we're labeling
-    done_defining = False  # a flag to tell our loop to exit
+    current_index = 0  # which numeric spot we are labeling
+    done_defining = False
 
     def on_mouse_click(event, x, y, flags, param):
         nonlocal current_points, current_index, done_defining
@@ -139,7 +139,6 @@ def define_parking_spots_via_gui(image_path, spots):
 
     while True:
         if done_defining:
-            # user either reached the last numeric spot or forced exit
             break
 
         if current_index >= len(numeric_spots):
@@ -157,13 +156,12 @@ def define_parking_spots_via_gui(image_path, spots):
         cv2.imshow("Define Spots", temp)
         key = cv2.waitKey(50)
         if key == ord('q'):
-            # user manually quit
             print("Exiting define-corners GUI due to 'q' key.")
             break
 
     cv2.destroyAllWindows()
 
-    # Now send corners to backend (if any defined)
+    # Now send corners to backend
     if defined_corners:
         to_send = []
         for sp_id, corners in defined_corners.items():
@@ -213,7 +211,7 @@ def detect_occupied_spots(resized_img, model, spots):
                         break
 
     # occupant_labels might have e.g. {"1","2","10"}
-    # We'll build a list of {spotId, occupied}
+    # build a list of {spotId, occupied}
     occupancy_list = []
     for sp in spots:
         lbl = sp["label"]
@@ -298,7 +296,7 @@ def run_detection_cycle(model):
     # 4) POST occupancy to backend
     send_occupancies(occupancy_list)
 
-    # 5) (Optional) annotate + save
+    # 5) annotate + save
     annotate_and_save(resized, spots, occupancy_list, OUTPUT_IMAGE_PATH)
     print("=== DETECTION CYCLE DONE ===\n")
 
@@ -310,7 +308,7 @@ def main():
         print("No spots in backend. Possibly none loaded from GeoJSON. Exiting.")
         return
 
-    # 2) Let user define corners in a GUI if desired
+    # 2) Let user define corners in a GUI
     define_parking_spots_via_gui(IMAGE_PATH, spots)
 
     # 3) Load YOLO

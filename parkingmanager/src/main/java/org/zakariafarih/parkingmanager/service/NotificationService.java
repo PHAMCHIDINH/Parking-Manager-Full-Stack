@@ -23,14 +23,11 @@ public class NotificationService {
                 .readStatus(false)
                 .build();
         Notification savedNotification = notificationRepository.save(notification);
-        // Send notification via WebSocket to the specific user.
         messagingTemplate.convertAndSendToUser(recipient.getId().toString(), "/queue/notifications", savedNotification);
         return savedNotification;
     }
 
-    // Broadcast an alert to admin clients.
     public void sendNotificationToAdmins(String message) {
-        // This sends the alert to a topic that admin dashboards subscribe to.
         messagingTemplate.convertAndSend("/topic/admin-alerts", message);
     }
 }

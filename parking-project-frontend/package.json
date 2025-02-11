@@ -16,6 +16,7 @@
     "@mui/material": "^6.4.3",
     "@mui/system": "^6.4.3",
     "@mui/x-date-pickers": "^7.25.0",
+    "@stomp/stompjs": "^7.0.0",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
     "jwt-decode": "^4.0.0",
@@ -27,6 +28,7 @@
     "react-konva": "^18.2.10",
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^7.1.5",
+    "sockjs-client": "^1.6.1",
     "three": "^0.173.0"
   },
   "devDependencies": {
@@ -35,6 +37,7 @@
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@types/react-leaflet": "^3.0.0",
+    "@types/sockjs-client": "^1.5.4",
     "@types/three": "^0.173.0",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.19.0",
