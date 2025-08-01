@@ -101,6 +101,13 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
+            <groupId>io.github.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>8.7.0</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/bucket4j-core-8.7.0.jar</systemPath>
+        </dependency>
+        <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt</artifactId>
             <version>0.12.6</version>

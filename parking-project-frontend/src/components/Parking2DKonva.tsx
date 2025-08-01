@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Stage, Layer, Line } from "react-konva";
 import { useTheme } from "@mui/material/styles";
 import { CircularProgress, Box } from "@mui/material";
-import API from "../api";
+import { SpotRecord } from "../types";
 
 interface GeoJsonFeature {
     type: "Feature";
@@ -31,6 +31,7 @@ interface Reservation {
 }
 
 export interface Parking2DKonvaProps {
+    spots?: SpotRecord[];
     selectedSpotId?: string;
     onSpotSelect: (spotId: string) => void;
     width?: number;
@@ -47,6 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
+                                                           spots,
                                                            selectedSpotId,
                                                            onSpotSelect,
                                                            width = 1000,
@@ -90,7 +92,8 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
         loadGeojson();
     }, []);
 
-    // 2) Once the GeoJSON is loaded, fetch occupancy and reservations
+    // 2) COMMENTED OUT TO FIX WEBSOCKET CONFLICT - Parent should provide spots data via WebSocket
+    /*
     useEffect(() => {
         if (!geojsonLoaded || !spotsData) return;
 
@@ -178,6 +181,52 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
         // Call the function only once
         fetchStatusesAndReservations();
     }, [geojsonLoaded]);
+    */
+
+    // NEW: Use spots data from props (WebSocket updates from parent)
+    useEffect(() => {
+        if (!spots || spots.length === 0) return;
+
+        console.log("[Parking2DKonva] Updating spotsData with props:", spots.length, "spots");
+
+        // Wait for spotsData to be loaded first
+        if (!spotsData?.features) {
+            console.log("[Parking2DKonva] Waiting for GeoJSON to load...");
+            return;
+        }
+
+        // Create a map of spot status from props
+        const statusMap: Record<string, { status: string; occupied?: boolean; type?: string }> = {};
+        spots.forEach((spot) => {
+            statusMap[spot.spot_id] = {
+                status: spot.occupied ? "occupied" : "available",
+                occupied: spot.occupied,
+                type: spot.type || "normal",
+            };
+        });
+
+        // Update spotsData features with current status from props
+        const updatedFeatures = spotsData.features.map((feature) => {
+            const spotId = feature.properties.spot_id;
+            if (spotId && statusMap[spotId]) {
+                const { status, occupied, type } = statusMap[spotId];
+                return {
+                    ...feature,
+                    properties: {
+                        ...feature.properties,
+                        status,
+                        occupied,
+                        type,
+                    },
+                };
+            }
+            return feature;
+        });
+
+        // Update spotsData with the merged features
+        setSpotsData((prev) => (prev ? { ...prev, features: updatedFeatures } : prev));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [spots, spotsData?.features?.length]); // Re-run when spots prop changes or GeoJSON is loaded
 
     useEffect(() => {
         if (!spotsData && !linesData && !polysData) return;

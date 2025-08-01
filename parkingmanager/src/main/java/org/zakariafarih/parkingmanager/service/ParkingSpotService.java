@@ -84,35 +84,41 @@ public class ParkingSpotService {
     }
 
     public void updatePythonOccupancies(List<PythonOccupancyDTO> occupancyList) {
+        System.out.println("🔄 Processing " + occupancyList.size() + " occupancy updates from Python");
+        
         // Convert each {spotId: X, occupied: bool} => label="X"
         Map<String, Boolean> occMap = new HashMap<>();
         for (PythonOccupancyDTO dto : occupancyList) {
             String label = String.valueOf(dto.getSpotId());
             occMap.put(label, dto.isOccupied());
+            System.out.println("  - Spot " + label + ": " + (dto.isOccupied() ? "OCCUPIED" : "FREE"));
         }
 
         List<ParkingSpot> all = parkingSpotRepository.findAll();
+        int updatedCount = 0;
 
-        // for each spot that is mentioned => set occupancy
+        // Only update spots that are explicitly provided by Python vision system
         for (ParkingSpot sp : all) {
             if (occMap.containsKey(sp.getLabel())) {
                 boolean isOcc = occMap.get(sp.getLabel());
+                boolean wasOccupied = sp.isOccupied();
                 sp.setOccupied(isOcc);
                 sp.setStatus(isOcc ? ParkingStatus.OCCUPIED : ParkingStatus.AVAILABLE);
+                
+                if (wasOccupied != isOcc) {
+                    System.out.println("  ✓ Updated spot " + sp.getLabel() + ": " + 
+                                     (wasOccupied ? "OCCUPIED" : "FREE") + " → " + 
+                                     (isOcc ? "OCCUPIED" : "FREE"));
+                    updatedCount++;
+                }
             }
+            // Do not modify spots that are not in the update list
         }
 
-        for (ParkingSpot sp : all) {
-            if (!occMap.containsKey(sp.getLabel())) {
-                boolean randomOcc = new Random().nextBoolean();
-                sp.setOccupied(randomOcc);
-                sp.setStatus(randomOcc ? ParkingStatus.OCCUPIED : ParkingStatus.AVAILABLE);
-            }
-        }
-
+        System.out.println("📊 Updated " + updatedCount + " spots, broadcasting to WebSocket clients");
         parkingSpotRepository.saveAll(all);
         // broadcast via WebSocket
-        // messagingTemplate.convertAndSend("/topic/parking-updates", all);
+        messagingTemplate.convertAndSend("/topic/parking-updates", all);
     }
 
     private void validateReservations(List<ParkingSpot> spots) {
