@@ -15,13 +15,12 @@ import {
     Divider,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import moment from "moment";
 import API from "../api";
 import WeekPicker, { TimeInterval } from "./WeekPicker";
 import VehicleTypeSelector from "./VehicleTypeSelector";
 import { useAuth } from "../contexts/AuthContext";
 import { SpotRecord } from "../types";
-import { formatForBackend } from "../utils/timeUtils";
+import { formatForBackend, parseBackendTime } from "../utils/timeUtils";
 
 /** The shape of a single reservation from backend. */
 interface ReservationData {
@@ -96,6 +95,13 @@ const SpotDetailsDialog: React.FC<SpotDetailsDialogProps> = ({
 
         try {
             for (const interval of selectedIntervals) {
+                console.log("Creating reservation:", {
+                    spotId: spot.spot_id,
+                    startTime: interval.start.format('YYYY-MM-DD HH:mm:ss'),
+                    endTime: interval.end.format('YYYY-MM-DD HH:mm:ss'),
+                    startTimeFormatted: formatForBackend(interval.start),
+                    endTimeFormatted: formatForBackend(interval.end),
+                });
                 await API.post("/reservations", {
                     parkingSpotId: Number(spot.spot_id),
                     startTime: formatForBackend(interval.start),
@@ -200,6 +206,10 @@ const SpotDetailsDialog: React.FC<SpotDetailsDialogProps> = ({
                             maxReservationHours={8}
                             maxIntervals={3}
                             disabled={loadingReservation}
+                            busyIntervals={reservations.map(r => ({
+                                start: parseBackendTime(r.startTime),
+                                end: parseBackendTime(r.endTime)
+                            }))}
                         />
 
                         {selectedIntervals.length > 0 && (
@@ -272,8 +282,8 @@ const SpotDetailsDialog: React.FC<SpotDetailsDialogProps> = ({
                                 ) : (
                                     <List>
                                         {reservations.map((r, index) => {
-                                            const start = moment(r.startTime);
-                                            const end = moment(r.endTime);
+                                            const start = parseBackendTime(r.startTime);
+                                            const end = parseBackendTime(r.endTime);
                                             const isOwnedByUser = user && String(user.id) === String(r.user.id);
                                             const duration = end.diff(start, 'hours', true);
 

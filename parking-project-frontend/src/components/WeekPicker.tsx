@@ -204,6 +204,13 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                     start: selectingStart,
                     end: clickedTime,
                 };
+                
+                console.log("WeekPicker - Adding interval:", {
+                    startSlot: selectingStart.format('YYYY-MM-DD HH:mm:ss'),
+                    endSlot: clickedTime.format('YYYY-MM-DD HH:mm:ss'),
+                    duration: clickedTime.diff(selectingStart, 'hours', true)
+                });
+                
                 setSelectedIntervals(prev => [...prev, newInterval]);
                 setSelectingStart(null);
                 setError('');

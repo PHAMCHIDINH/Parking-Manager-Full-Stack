@@ -46,6 +46,11 @@ public class ReservationController {
     log.info("Create reservation request: spotId={}, startTime={}, endTime={}, userId={}",
         request.getParkingSpotId(), request.getStartTime(), request.getEndTime(), userId);
 
+        // Debug: Log parsed times details
+        log.info("Parsed times - Start: {} ({}), End: {} ({})",
+            request.getStartTime(), request.getStartTime().getClass().getSimpleName(),
+            request.getEndTime(), request.getEndTime().getClass().getSimpleName());
+
         Reservation reservation = reservationService.createReservation(
                 userId,
                 request.getParkingSpotId(),

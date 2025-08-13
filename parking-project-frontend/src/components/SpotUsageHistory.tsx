@@ -73,8 +73,8 @@ const SpotUsageHistory: React.FC<SpotUsageHistoryProps> = ({ usageData }) => {
                 <List>
                     {filteredHistory.map((res, index) => {
   // Use a real timezone (recommended)
-  const start = dayjs(res.start).tz('Asia/Ho_Chi_Minh');
-  const end = dayjs(res.end).tz('Asia/Asia/Ho_Chi_Minh');
+    const start = dayjs(res.start).tz('Asia/Ho_Chi_Minh');
+    const end = dayjs(res.end).tz('Asia/Ho_Chi_Minh');
 
   // Or, if you prefer a fixed offset: const start = dayjs(res.start).utcOffset(7, true); const end = dayjs(res.end).utcOffset(7, true);
 

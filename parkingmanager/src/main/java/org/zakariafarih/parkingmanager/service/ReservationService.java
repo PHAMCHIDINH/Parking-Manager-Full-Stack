@@ -43,6 +43,9 @@ public class ReservationService {
                                          Long parkingSpotId,
                                          LocalDateTime startTime,
                                          LocalDateTime endTime) {
+        logger.info("ReservationService.createReservation called with: userId={}, spotId={}, start={}, end={}",
+            userId, parkingSpotId, startTime, endTime);
+        
         if (endTime.isBefore(startTime)) {
             throw new RuntimeException("End time cannot be before start time");
         }
@@ -79,12 +82,17 @@ public class ReservationService {
                 .endTime(endTime)
                 .build();
 
+        logger.info("Built reservation object: start={}, end={}", 
+            reservation.getStartTime(), reservation.getEndTime());
+
         if (startTime.isBefore(LocalDateTime.now().plusMinutes(5))) {
             spot.setStatus(ParkingStatus.RESERVED);
             parkingSpotRepository.save(spot);
         }
 
         Reservation created = reservationRepository.save(reservation);
+        logger.info("Saved reservation to database: id={}, start={}, end={}", 
+            created.getId(), created.getStartTime(), created.getEndTime());
         logger.info("Created reservation {} for user={} on spot={}", created.getId(), user.getEmail(), spot.getLabel());
         return created;
     }
