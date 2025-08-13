@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import axios, { AxiosError } from "axios";
 import API from "../api";
 import {
     Container,
@@ -58,7 +59,7 @@ const RegisterCard = styled(Paper)(({ theme }) => ({
     zIndex: 2,
 }));
 
-const StyledTextField = styled(TextField)(({ theme }) => ({
+const StyledTextField = styled(TextField)(() => ({
     '& .MuiOutlinedInput-root': {
         backgroundColor: '#ffffff',
         '& fieldset': {
@@ -74,6 +75,7 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
 }));
 
 const Register: React.FC = () => {
+    const navigate = useNavigate();
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -84,31 +86,68 @@ const Register: React.FC = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+    const redirectTimer = useRef<number | undefined>(undefined);
+
+    // Basic client-side validations
+    const isEmailValid = /[^\s@]+@[^\s@]+\.[^\s@]+/.test(email.trim());
+    const isPasswordStrong = password.length >= 6; // adjust policy if needed
+    const doPasswordsMatch = password === confirmPassword;
+    const isFormValid = username.trim().length > 0 && isEmailValid && isPasswordStrong && doPasswordsMatch;
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError(null);
         setMessage(null);
 
-        if (password !== confirmPassword) {
-            setError("Passwords do not match.");
+        const mail = email.trim();
+        const pass = password;
+        const cpass = confirmPassword;
+
+        if (!/[^\s@]+@[^\s@]+\.[^\s@]+/.test(mail)) {
+            setError("Email không hợp lệ.");
+            return;
+        }
+        if (pass.length < 6) {
+            setError("Mật khẩu phải có ít nhất 6 ký tự.");
+            return;
+        }
+        if (pass !== cpass) {
+            setError("Mật khẩu xác nhận không khớp.");
             return;
         }
 
         setLoading(true);
 
         try {
-            await API.post("/auth/register", { username, email, password });
-            setMessage("Registration successful! Please check your email to verify your account.");
+            await API.post("/auth/signup", { email: mail, password: pass });
+            setMessage("Đăng ký thành công! Vui lòng kiểm tra email để xác minh tài khoản.");
             setUsername("");
             setEmail("");
             setPassword("");
             setConfirmPassword("");
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Registration failed. Please try again.");
+            // Auto redirect to login after short delay
+            redirectTimer.current = window.setTimeout(() => navigate("/login"), 1500);
+        } catch (err: unknown) {
+            let msg = "Đăng ký thất bại. Vui lòng thử lại.";
+            if (axios.isAxiosError(err)) {
+                const axErr = err as AxiosError<{ message?: string }>; 
+                msg = axErr.response?.data?.message ?? axErr.message ?? msg;
+            } else if (err instanceof Error) {
+                msg = err.message || msg;
+            }
+            setError(msg);
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        return () => {
+            if (redirectTimer.current) {
+                clearTimeout(redirectTimer.current);
+            }
+        };
+    }, []);
 
     return (
         <BackgroundLoader imageUrl="/backgroud.jpg">
@@ -199,6 +238,8 @@ const Register: React.FC = () => {
                                 margin="normal"
                                 required
                                 disabled={loading}
+                                error={email.length > 0 && !isEmailValid}
+                                helperText={email.length > 0 && !isEmailValid ? 'Email không hợp lệ' : ' '}
                                 size="medium"
                                 InputProps={{
                                     startAdornment: (
@@ -218,6 +259,8 @@ const Register: React.FC = () => {
                                 margin="normal"
                                 required
                                 disabled={loading}
+                                error={password.length > 0 && !isPasswordStrong}
+                                helperText={password.length > 0 && !isPasswordStrong ? 'Ít nhất 6 ký tự' : ' '}
                                 size="medium"
                                 InputProps={{
                                     startAdornment: (
@@ -249,6 +292,8 @@ const Register: React.FC = () => {
                                 margin="normal"
                                 required
                                 disabled={loading}
+                                error={confirmPassword.length > 0 && !doPasswordsMatch}
+                                helperText={confirmPassword.length > 0 && !doPasswordsMatch ? 'Mật khẩu xác nhận không khớp' : ' '}
                                 size="medium"
                                 InputProps={{
                                     startAdornment: (
@@ -276,7 +321,7 @@ const Register: React.FC = () => {
                                 type="submit"
                                 fullWidth
                                 variant="contained"
-                                disabled={loading}
+                                disabled={loading || !isFormValid}
                                 sx={{
                                     mt: 3,
                                     mb: 3,

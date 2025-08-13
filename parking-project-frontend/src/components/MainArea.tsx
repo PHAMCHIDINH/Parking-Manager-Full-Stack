@@ -6,17 +6,17 @@ import { SpotRecord } from '../types';
 const KonvaHeader = styled(Box)(({ theme }) => ({
     marginBottom: theme.spacing(2),
     padding: theme.spacing(1, 2),
-    backgroundColor: theme.palette.primary.light,
-    borderRadius: theme.spacing(0.5),
-    boxShadow: theme.shadows[2],
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
 }));
 
 const KanvaWrapper = styled(Box)(({ theme }) => ({
     width: 1200,
     height: 800,
-    backgroundColor: theme.palette.grey[300],
-    borderRadius: theme.spacing(1),
-    boxShadow: theme.shadows[3],
+    backgroundColor: theme.palette.grey[100],
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -25,7 +25,7 @@ const KanvaWrapper = styled(Box)(({ theme }) => ({
 const StyledKonvaContainer = styled(Box)(({ theme }) => ({
     width: 1160,
     height: 760,
-    border: `2px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
 }));
 
 interface MainAreaProps {
@@ -47,12 +47,12 @@ const MainArea: React.FC<MainAreaProps> = ({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                p: 4,
-                backgroundColor: 'grey.100',
+                p: 3,
+                backgroundColor: 'background.default',
             }}
         >
             <KonvaHeader>
-                <Typography variant="subtitle1" color="text.primary">
+                <Typography variant="subtitle2" color="text.secondary">
                     Select or filter parking spots using the side panels, or click on a spot in the map.
                 </Typography>
             </KonvaHeader>

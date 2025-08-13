@@ -36,11 +36,11 @@ const ToggleButton: React.FC<ToggleButtonProps> = ({ side, isOpen, onToggle }) =
             <IconButton
                 onClick={onToggle}
                 sx={{
-                    backgroundColor: side === 'left' ? 'secondary.main' : 'primary.main',
-                    color: side === 'left' ? 'secondary.contrastText' : 'primary.contrastText',
-                    "&:hover": {
-                        backgroundColor: side === 'left' ? 'secondary.dark' : 'primary.dark',
-                    },
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    backgroundColor: 'background.paper',
+                    color: 'text.primary',
+                    '&:hover': { backgroundColor: 'action.hover' },
                 }}
             >
                 {getIcon()}

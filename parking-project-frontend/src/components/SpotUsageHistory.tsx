@@ -6,10 +6,15 @@ import {
     ListItem,
     Chip,
     Divider,
-    TextField
-} from "@mui/material";
+} 
+from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers";
 import dayjs, { Dayjs } from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export interface UsageRecord {
     id: number;
@@ -67,9 +72,13 @@ const SpotUsageHistory: React.FC<SpotUsageHistoryProps> = ({ usageData }) => {
             ) : (
                 <List>
                     {filteredHistory.map((res, index) => {
-                        const start = dayjs(res.start);
-                        const end = dayjs(res.end);
-                        const durationHrs = end.diff(start, "hour");
+  // Use a real timezone (recommended)
+  const start = dayjs(res.start).tz('Asia/Ho_Chi_Minh');
+  const end = dayjs(res.end).tz('Asia/Asia/Ho_Chi_Minh');
+
+  // Or, if you prefer a fixed offset: const start = dayjs(res.start).utcOffset(7, true); const end = dayjs(res.end).utcOffset(7, true);
+
+  const durationHrs = end.diff(start, 'hour');
 
                         return (
                             <Box key={res.id}>
@@ -90,7 +99,7 @@ const SpotUsageHistory: React.FC<SpotUsageHistoryProps> = ({ usageData }) => {
                                         }}
                                     />
                                     <Typography variant="body2" sx={{ flex: 1 }}>
-                                        {start.format("DD MMM YYYY")} | {start.format("HH:mm")} - {end.format("HH:mm")} ({durationHrs} hrs)
+                                        {start.format("DD MM YYYY")} | {start.format("HH:mm")} - {end.format("HH:mm")} ({durationHrs} hrs)
                                     </Typography>
                                 </ListItem>
                                 {index < filteredHistory.length - 1 && <Divider sx={{ my: 1 }} />}

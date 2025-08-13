@@ -1,21 +1,26 @@
-import moment, { Moment } from 'moment';
+import moment from 'moment';
+import { Moment } from 'moment';
 
 /**
  * Utility functions để xử lý thời gian một cách nhất quán
  */
 
 /**
- * Chuyển đổi thời gian từ backend (UTC string) về local time
+ * Chuyển đổi thời gian từ backend (UTC string hoặc local string) về local time
  */
 export const parseBackendTime = (timeString: string): Moment => {
-    return moment(timeString).local();
+    // Nếu backend trả về ISO string có Z hoặc offset, moment.parseZone sẽ giữ đúng timezone gốc.
+    // Sau đó .local() để convert sang giờ máy người dùng.
+    return moment.parseZone(timeString).local();
 };
 
 /**
  * Chuyển đổi thời gian local thành format để gửi lên backend
  */
 export const formatForBackend = (localTime: Moment): string => {
-    return localTime.toISOString();
+    // Backend expects LocalDateTime (no timezone). Send as local time without offset.
+    // Example: 2025-08-13T10:00:00
+    return localTime.format('YYYY-MM-DDTHH:mm:ss');
 };
 
 /**
@@ -40,14 +45,14 @@ export const formatDisplayHour = (time: Moment): string => {
 };
 
 /**
- * Tính khoảng cách thời gian bằng giờ
+ * Tính khoảng cách thời gian bằng giờ (số thập phân)
  */
 export const calculateDurationHours = (startTime: Moment, endTime: Moment): number => {
     return endTime.diff(startTime, 'hours', true);
 };
 
 /**
- * Kiểm tra thời gian có phải upcoming/active/past
+ * Kiểm tra trạng thái thời gian: upcoming / active / past
  */
 export const getTimeStatus = (startTime: Moment, endTime: Moment) => {
     const now = moment();

@@ -12,7 +12,6 @@ import {
     TextField,
     IconButton,
     styled,
-    Badge,
     Tooltip,
     Fade,
     Paper,
@@ -29,33 +28,22 @@ const RightPanelRoot = styled(Box)(({ theme }) => ({
     height: "100vh",
     width: "100%",
     overflow: "hidden",
-    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+    background: theme.palette.background.default,
     borderLeft: `1px solid ${theme.palette.divider}`,
     position: 'relative',
 }));
 
 const RightDrawerHeader = styled(Paper)(({ theme }) => ({
-    padding: theme.spacing(3),
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
+    padding: theme.spacing(2.5),
+    background: theme.palette.background.paper,
+    color: theme.palette.text.primary,
     display: "flex",
     flexDirection: "column",
     gap: theme.spacing(2),
     flexShrink: 0,
     borderRadius: 0,
-    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-    position: 'relative',
-    '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(255,255,255,0.1)',
-        backdropFilter: 'blur(10px)',
-        zIndex: -1,
-    }
+    boxShadow: 'none',
+    borderBottom: `1px solid ${theme.palette.divider}`,
 }));
 
 const FilterControls = styled(Box)(({ theme }) => ({
@@ -64,26 +52,9 @@ const FilterControls = styled(Box)(({ theme }) => ({
     gap: theme.spacing(2),
     '& .MuiTextField-root': {
         '& .MuiOutlinedInput-root': {
-            backgroundColor: 'rgba(255,255,255,0.9)',
-            borderRadius: theme.spacing(2),
-            '& fieldset': {
-                borderColor: 'rgba(255,255,255,0.3)',
-            },
-            '&:hover fieldset': {
-                borderColor: 'rgba(255,255,255,0.5)',
-            },
-            '&.Mui-focused fieldset': {
-                borderColor: 'white',
-            },
+            borderRadius: theme.spacing(1),
         },
-        '& .MuiInputBase-input': {
-            padding: theme.spacing(1.5),
-        },
-        '& .MuiInputBase-input::placeholder': {
-            color: theme.palette.text.secondary,
-            opacity: 0.7,
-        }
-    }
+    },
 }));
 
 const SpotCardsContainer = styled(Box)(({ theme }) => ({
@@ -111,47 +82,22 @@ const SpotCard = styled(Card, {
     shouldForwardProp: (prop) => prop !== 'isSelected' && prop !== 'occupied'
 })<{ isSelected?: boolean; occupied?: boolean }>(({ theme, isSelected, occupied }) => ({
     margin: theme.spacing(1, 0),
-    borderRadius: theme.spacing(2),
-    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    borderRadius: theme.shape.borderRadius,
+    transition: "box-shadow 0.2s ease, transform 0.15s ease",
     border: isSelected
-        ? `3px solid ${theme.palette.secondary.main}`
+        ? `2px solid ${theme.palette.primary.main}`
         : `1px solid ${theme.palette.divider}`,
-    background: isSelected
-        ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-        : occupied 
-            ? 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)'
-            : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-    color: isSelected ? 'white' : occupied ? 'white' : theme.palette.text.primary,
-    boxShadow: isSelected 
-        ? '0 8px 32px rgba(102, 126, 234, 0.4)' 
-        : occupied
-            ? '0 4px 20px rgba(255, 107, 107, 0.3)'
-            : '0 2px 12px rgba(0,0,0,0.08)',
+    background: theme.palette.background.paper,
+    color: theme.palette.text.primary,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
     position: 'relative',
     overflow: 'hidden',
     cursor: 'pointer',
     "&:hover": {
-        transform: "translateY(-4px) scale(1.02)",
-        boxShadow: isSelected 
-            ? '0 12px 48px rgba(102, 126, 234, 0.6)' 
-            : occupied
-                ? '0 8px 32px rgba(255, 107, 107, 0.5)'
-                : '0 8px 32px rgba(0,0,0,0.15)',
+        transform: "translateY(-2px)",
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
     },
-    "&::before": {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(255,255,255,0.1)',
-        opacity: isSelected ? 1 : 0,
-        transition: 'opacity 0.3s ease',
-    },
-    "&:hover::before": {
-        opacity: 0.2,
-    }
+    ...(occupied ? { borderLeft: `4px solid ${theme.palette.error.main}` } : {}),
 }));
 
 interface RightPanelProps {
@@ -237,114 +183,42 @@ const RightPanel: React.FC<RightPanelProps> = ({
                 <>
                 <RightDrawerHeader elevation={0}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                        <LocalParkingIcon sx={{ fontSize: 32 }} />
-                        <Typography variant="h5" sx={{ fontWeight: 'bold', flex: 1 }}>
+                        <LocalParkingIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+                        <Typography variant="h6" sx={{ fontWeight: 700, flex: 1 }}>
                             Parking Spots
                         </Typography>
-                        <Badge 
-                            badgeContent={statistics.occupied} 
-                            color="error"
-                            sx={{
-                                '& .MuiBadge-badge': {
-                                    backgroundColor: '#ff4757',
-                                    color: 'white',
-                                    fontWeight: 'bold',
-                                }
-                            }}
-                        >
-                            <Badge 
-                                badgeContent={statistics.available} 
-                                color="success"
-                                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                                sx={{
-                                    '& .MuiBadge-badge': {
-                                        backgroundColor: '#2ed573',
-                                        color: 'white',
-                                        fontWeight: 'bold',
-                                    }
-                                }}
-                            >
-                                <Box sx={{ 
-                                    backgroundColor: 'rgba(255,255,255,0.2)', 
-                                    borderRadius: 2, 
-                                    p: 1,
-                                    minWidth: 40,
-                                    textAlign: 'center'
-                                }}>
-                                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                        {statistics.total}
-                                    </Typography>
-                                </Box>
-                            </Badge>
-                        </Badge>
+                        <Box sx={{ display: 'flex', gap: 1.5 }}>
+                            <Chip label={`Total: ${statistics.total}`} variant="outlined" size="small" />
+                            <Chip label={`Free: ${statistics.available}`} color="success" variant="outlined" size="small" />
+                            <Chip label={`Busy: ${statistics.occupied}`} color="error" variant="outlined" size="small" />
+                        </Box>
                     </Box>
                     
-                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        <Tooltip title="Total spots">
-                            <Paper sx={{ 
-                                p: 1.5, 
-                                backgroundColor: 'rgba(255,255,255,0.15)',
-                                backdropFilter: 'blur(10px)',
-                                borderRadius: 2,
-                                textAlign: 'center',
-                                minWidth: 60
-                            }}>
-                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                                    Total
-                                </Typography>
-                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                    {statistics.total}
-                                </Typography>
-                            </Paper>
-                        </Tooltip>
-                        
-                        <Tooltip title="Available spots">
-                            <Paper sx={{ 
-                                p: 1.5, 
-                                backgroundColor: 'rgba(46, 213, 115, 0.2)',
-                                backdropFilter: 'blur(10px)',
-                                borderRadius: 2,
-                                textAlign: 'center',
-                                minWidth: 60
-                            }}>
-                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                                    Free
-                                </Typography>
-                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                    {statistics.available}
-                                </Typography>
-                            </Paper>
-                        </Tooltip>
-                        
-                        <Tooltip title="Occupied spots">
-                            <Paper sx={{ 
-                                p: 1.5, 
-                                backgroundColor: 'rgba(255, 71, 87, 0.2)',
-                                backdropFilter: 'blur(10px)',
-                                borderRadius: 2,
-                                textAlign: 'center',
-                                minWidth: 60
-                            }}>
-                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                                    Busy
-                                </Typography>
-                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                    {statistics.occupied}
-                                </Typography>
-                            </Paper>
-                        </Tooltip>
+                    <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
+                        <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', minWidth: 80 }}>
+                            <Typography variant="caption" color="text.secondary">Total</Typography>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{statistics.total}</Typography>
+                        </Paper>
+                        <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', minWidth: 80 }}>
+                            <Typography variant="caption" color="text.secondary">Free</Typography>
+                            <Typography variant="subtitle1" color="success.main" sx={{ fontWeight: 700 }}>{statistics.available}</Typography>
+                        </Paper>
+                        <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', minWidth: 80 }}>
+                            <Typography variant="caption" color="text.secondary">Busy</Typography>
+                            <Typography variant="subtitle1" color="error.main" sx={{ fontWeight: 700 }}>{statistics.occupied}</Typography>
+                        </Paper>
                     </Box>
 
                     <FilterControls>
                         <TextField
                             variant="outlined"
-                            placeholder="🔍 Search by Spot ID..."
+                            placeholder="Search by Spot ID"
                             size="medium"
                             value={filterText}
                             onChange={onFilterChange}
                             fullWidth
                             InputProps={{
-                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'rgba(0,0,0,0.5)' }} />,
+                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.disabled' }} />,
                             }}
                         />
                     </FilterControls>
@@ -381,7 +255,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
                                                 sx={{ width: "100%" }}
                                                 onClick={() => handleSpotClick(spot.spot_id)}
                                             >
-                                                <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+                                                <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
                                                     <Box
                                                         display="flex"
                                                         justifyContent="space-between"
@@ -389,14 +263,8 @@ const RightPanel: React.FC<RightPanelProps> = ({
                                                         mb={2}
                                                     >
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                                            <LocalParkingIcon sx={{ 
-                                                                fontSize: 24,
-                                                                opacity: 0.8 
-                                                            }} />
-                                                            <Typography variant="h6" sx={{ 
-                                                                fontWeight: 'bold',
-                                                                letterSpacing: '0.5px'
-                                                            }}>
+                                                            <LocalParkingIcon sx={{ fontSize: 22, color: 'primary.main' }} />
+                                                            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                                                                 Spot {spot.spot_id}
                                                             </Typography>
                                                         </Box>
@@ -408,13 +276,14 @@ const RightPanel: React.FC<RightPanelProps> = ({
                                                                     handleOpenDialog(spot);
                                                                 }}
                                                                 sx={{
-                                                                    backgroundColor: 'rgba(255,255,255,0.2)',
-                                                                    color: 'inherit',
+                                                                    border: '1px solid',
+                                                                    borderColor: 'divider',
+                                                                    backgroundColor: 'background.paper',
+                                                                    color: 'text.primary',
                                                                     '&:hover': {
-                                                                        backgroundColor: 'rgba(255,255,255,0.3)',
-                                                                        transform: 'scale(1.1)',
+                                                                        backgroundColor: 'action.hover',
                                                                     },
-                                                                    transition: 'all 0.2s ease',
+                                                                    transition: 'background-color 0.2s ease',
                                                                 }}
                                                             >
                                                                 <EditIcon />
@@ -429,7 +298,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
                                                         gap={2}
                                                     >
                                                         <Typography variant="body1" sx={{ 
-                                                            opacity: 0.9,
+                                                            color: 'text.secondary',
                                                             fontWeight: 500
                                                         }}>
                                                             Type: {spot.type}
@@ -438,18 +307,8 @@ const RightPanel: React.FC<RightPanelProps> = ({
                                                             label={spot.occupied ? "Occupied" : "Available"}
                                                             color={spot.occupied ? "error" : "success"}
                                                             size="small"
-                                                            sx={{ 
-                                                                fontWeight: 'bold',
-                                                                fontSize: '0.75rem',
-                                                                backgroundColor: spot.occupied 
-                                                                    ? 'rgba(255,255,255,0.2)' 
-                                                                    : 'rgba(255,255,255,0.2)',
-                                                                color: 'inherit',
-                                                                border: '1px solid rgba(255,255,255,0.3)',
-                                                                '& .MuiChip-label': {
-                                                                    px: 2
-                                                                }
-                                                            }}
+                                                            variant="outlined"
+                                                            sx={{ fontWeight: 600 }}
                                                         />
                                                     </Box>
                                                 </CardContent>
@@ -459,16 +318,17 @@ const RightPanel: React.FC<RightPanelProps> = ({
                                 ))}
                                 {filteredSpots.length === 0 && !isLoading && (
                                     <Box sx={{ 
-                                        textAlign: 'center', 
+                                        textAlign: 'center',
                                         p: 4,
-                                        backgroundColor: 'rgba(255,255,255,0.8)',
-                                        borderRadius: 3,
+                                        backgroundColor: 'background.paper',
+                                        borderRadius: 2,
                                         m: 2,
-                                        backdropFilter: 'blur(10px)',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
                                     }}>
                                         <LocalParkingIcon sx={{ 
-                                            fontSize: 64, 
-                                            color: 'rgba(0,0,0,0.3)',
+                                            fontSize: 56,
+                                            color: 'text.disabled',
                                             mb: 2 
                                         }} />
                                         <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>

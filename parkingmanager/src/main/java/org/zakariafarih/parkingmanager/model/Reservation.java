@@ -23,9 +23,11 @@ public class Reservation {
     @JoinColumn(name = "parking_spot_id", nullable = false)
     private ParkingSpot parkingSpot;
 
-    @Column(nullable = false)
+    // Store as DATETIME to avoid timezone conversion at DB level
+    @Column(nullable = false, columnDefinition = "DATETIME")
     private LocalDateTime startTime;
 
-    @Column(nullable = false)
+    // Store as DATETIME to avoid timezone conversion at DB level
+    @Column(nullable = false, columnDefinition = "DATETIME")
     private LocalDateTime endTime;
 }

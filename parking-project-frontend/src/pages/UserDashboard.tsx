@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
     AppBar,
     Toolbar,
@@ -10,23 +10,16 @@ import {
     FormControlLabel,
     Switch,
     Chip,
-    Badge,
     Tooltip,
     Fade,
     Paper,
     Container,
-    Grid,
-    alpha,
-    CircularProgress, // ⭐ Thêm import này
+    CircularProgress,
 } from "@mui/material";
 import { 
     Person as PersonIcon,
-    DirectionsCar as CarIcon,
-    Visibility as VisibilityIcon,
-    VisibilityOff as VisibilityOffIcon,
     LocalParking as ParkingIcon,
     BookOnline as BookIcon,
-    Schedule as ScheduleIcon,
     Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -43,18 +36,24 @@ import SockJS from "sockjs-client";
  * Convert raw spot from GET /parking to SpotRecord
  */
 function toSpotRecord(spot: unknown): SpotRecord {
-    const spotData = spot as { 
+    const spotData = spot as {
         id: number;
-        label: string; 
-        category: string; 
-        status: string; // ⭐ Backend dùng "status", không phải "occupied"
-        coordinates?: string 
+        label: string;
+        category: string;
+        status?: string; // Backend có thể gửi status hoặc occupied
+        occupied?: boolean;
+        coordinates?: string;
+        imageCoordinates?: string;
     };
+    const occupiedBool = typeof spotData.occupied === 'boolean'
+        ? spotData.occupied
+        : spotData.status === 'OCCUPIED';
+    const geometryJson = spotData.coordinates || spotData.imageCoordinates;
     return {
         spot_id: spotData.label,
         type: spotData.category,
-        occupied: spotData.status === "OCCUPIED", // ⭐ Convert status thành boolean
-        geometry: spotData.coordinates ? JSON.parse(spotData.coordinates) : undefined,
+        occupied: !!occupiedBool,
+        geometry: geometryJson ? JSON.parse(geometryJson) : undefined,
     };
 }
 
@@ -66,6 +65,8 @@ export default function UserDashboard() {
     const [selectedSpotId, setSelectedSpotId] = useState<string>();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [lastWsAt, setLastWsAt] = useState<number>(() => Date.now());
+    const [lastPollAt, setLastPollAt] = useState<number>(0);
 
     // For text filtering
     const [filterText, setFilterText] = useState("");
@@ -104,87 +105,133 @@ export default function UserDashboard() {
         }
     }, []);
 
+    // Background refresh without spinner (used by polling fallback)
+    const refreshSpots = useCallback(async () => {
+        try {
+            const resp = await API.get("/parking");
+            const data = resp.data as unknown[];
+            setSpots(data.map(toSpotRecord));
+        } catch (err) {
+            console.error("Error background refreshing spots:", err);
+        }
+    }, []);
+
     // Fetch initial data with optimized loading
     useEffect(() => {
         loadSpots();
     }, [loadSpots]);
 
     // WebSocket for real-time updates
+    const wsInitializedRef = useRef(false);
     useEffect(() => {
         if (!liveOccupancy) {
             console.log("[UserDashboard] Live occupancy disabled, skipping WebSocket");
             return;
         }
+        if (wsInitializedRef.current) {
+            // Avoid double-connect in React 18 StrictMode (dev)
+            console.log("[UserDashboard] WebSocket already initialized (StrictMode guard)");
+            return;
+        }
+        wsInitializedRef.current = true;
 
         console.log("[UserDashboard] Setting up WebSocket connection...");
-        const socket = new SockJS("http://localhost:8080/ws");
-        const stompClient = new Client({
-            webSocketFactory: () => socket as any,
-            debug: (str) => {
-                console.log("[UserDashboard] STOMP Debug:", str);
-            },
-            onConnect: () => {
-                console.log("[UserDashboard] STOMP connected successfully!");
-                stompClient.subscribe("/topic/parking-updates", (msg: Message) => {
-                    const payload = JSON.parse(msg.body);
-                    console.log("[UserDashboard] Received WebSocket update:", payload);
-                    if (Array.isArray(payload)) {
-                        console.log("[UserDashboard] Updating all spots:", payload.length);
-                        setSpots(payload.map(toSpotRecord));
-                    } else {
-                        const updated = toSpotRecord(payload);
-                        console.log("[UserDashboard] Updating single spot:", updated.spot_id);
-                        setSpots((prev) => {
-                            const idx = prev.findIndex((s) => s.spot_id === updated.spot_id);
-                            if (idx >= 0) {
-                                const copy = [...prev];
-                                copy[idx] = updated;
-                                return copy;
-                            }
-                            return [...prev, updated];
-                        });
+        const urls = [
+            "/ws", // same-origin or via Vite proxy in dev
+            "http://localhost:8080/ws", // fallback direct to backend
+        ];
+        let attemptIndex = 0;
+        let client: Client | null = null;
+
+        const connect = (url: string) => {
+            console.log(`[UserDashboard] Trying WebSocket: ${url}`);
+            const socket = new SockJS(url);
+            const c = new Client({
+                webSocketFactory: () => socket as unknown as WebSocket,
+                reconnectDelay: 5000,
+                heartbeatIncoming: 10000,
+                heartbeatOutgoing: 10000,
+                debug: (str) => {
+                    console.log("[UserDashboard] STOMP Debug:", str);
+                },
+        onConnect: () => {
+                    console.log("[UserDashboard] STOMP connected successfully!");
+                    c.subscribe("/topic/parking-updates", (msg: Message) => {
+                        const payload = JSON.parse(msg.body);
+            setLastWsAt(Date.now());
+                        console.log("[UserDashboard] Received WebSocket update:", payload);
+                        if (Array.isArray(payload)) {
+                            console.log("[UserDashboard] Updating all spots:", payload.length);
+                            setSpots(payload.map(toSpotRecord));
+                        } else {
+                            const updated = toSpotRecord(payload);
+                            console.log("[UserDashboard] Updating single spot:", updated.spot_id);
+                            setSpots((prev) => {
+                                const idx = prev.findIndex((s) => s.spot_id === updated.spot_id);
+                                if (idx >= 0) {
+                                    const copy = [...prev];
+                                    copy[idx] = updated;
+                                    return copy;
+                                }
+                                return [...prev, updated];
+                            });
+                        }
+                    });
+                },
+                onDisconnect: () => {
+                    console.log("[UserDashboard] STOMP disconnected!");
+                },
+                onStompError: (frame) => {
+                    console.error("[UserDashboard] STOMP error:", frame);
+                },
+                onWebSocketError: (event) => {
+                    console.error("[UserDashboard] WebSocket error:", event);
+                },
+                onWebSocketClose: () => {
+                    console.warn("[UserDashboard] WebSocket closed.");
+                    if (attemptIndex < urls.length - 1) {
+                        attemptIndex += 1;
+                        console.warn(`[UserDashboard] Retrying with fallback: ${urls[attemptIndex]}`);
+                        setTimeout(() => {
+                            c.deactivate();
+                            client = connect(urls[attemptIndex]);
+                        }, 250);
                     }
-                });
-            },
-            onDisconnect: () => {
-                console.log("[UserDashboard] STOMP disconnected!");
-            },
-            onStompError: (frame) => {
-                console.error("[UserDashboard] STOMP error:", frame);
-            },
-            onWebSocketError: (event) => {
-                console.error("[UserDashboard] WebSocket error:", event);
-            },
-        });
-        
-        console.log("[UserDashboard] Activating STOMP client...");
-        stompClient.activate();
+                }
+            });
+            console.log("[UserDashboard] Activating STOMP client...");
+            c.activate();
+            return c;
+        };
+
+    client = connect(urls[attemptIndex]);
 
         return () => {
             console.log("[UserDashboard] Deactivating STOMP client...");
-            stompClient.deactivate();
+            if (client) client.deactivate();
+            wsInitializedRef.current = false;
         };
     }, [liveOccupancy]);
 
-    const handleFetchSpots = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const resp = await API.get("/parking");
-            const data = resp.data as Array<any>;
-            setSpots(data.map(toSpotRecord));
-        } catch (err) {
-            console.error("Error loading spots:", err);
-            setError("Failed to load parking spots");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    // Polling fallback: if no WS message for 15s, refresh at most every 15s (no spinner)
+    useEffect(() => {
+        if (!liveOccupancy) return;
+        const id = setInterval(() => {
+            const now = Date.now();
+            if (now - lastWsAt > 15000 && now - lastPollAt > 15000) {
+                console.log("[UserDashboard] WS quiet, background polling /parking as fallback...");
+                setLastPollAt(now);
+                refreshSpots();
+            }
+        }, 5000);
+        return () => clearInterval(id);
+    }, [liveOccupancy, lastWsAt, lastPollAt, refreshSpots]);
 
-    const baseURL = "http://localhost:8080";
+    // Note: explicit manual fetch function removed to avoid duplication with loadSpots
+
     const profileImageUrl =
         user?.profileImageUrl && !user.profileImageUrl.startsWith("http")
-            ? baseURL + user.profileImageUrl
+            ? window.location.origin.replace(/\/+$/, "") + user.profileImageUrl
             : user?.profileImageUrl;
 
     const handleSpotSelect = useCallback((spotId: string) => {
@@ -208,28 +255,12 @@ export default function UserDashboard() {
 
     return (
         <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-            {/* Enhanced AppBar for User */}
-            <AppBar 
-                position="fixed"
-                sx={{ 
-                    background: 'linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                }}
-            >
+            {/* AppBar: clean and neutral per theme */}
+            <AppBar position="fixed">
                 <Toolbar sx={{ display: "flex", justifyContent: "space-between", py: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                         <Tooltip title="Hồ sơ cá nhân">
-                            <IconButton 
-                                onClick={() => navigate("/user/profile")}
-                                sx={{ 
-                                    border: '2px solid rgba(255,255,255,0.3)',
-                                    '&:hover': { 
-                                        border: '2px solid rgba(255,255,255,0.6)',
-                                        transform: 'scale(1.05)'
-                                    },
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
+                            <IconButton onClick={() => navigate("/user/profile")}>
                                 <Avatar 
                                     src={profileImageUrl || ""} 
                                     alt={user?.name || "User"}
@@ -238,64 +269,28 @@ export default function UserDashboard() {
                             </IconButton>
                         </Tooltip>
                         <Box>
-                            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <PersonIcon />
                                 {user?.name || "User Dashboard"}
                             </Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                                 Tìm kiếm và đặt chỗ đỗ xe
                             </Typography>
                         </Box>
                     </Box>
                     
-                    {/* User Statistics */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {/* User Statistics - minimal, neutral */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Fade in={!isLoading}>
                             <Box sx={{ display: 'flex', gap: 1 }}>
                                 <Tooltip title="Tổng số chỗ đỗ">
-                                    <Chip 
-                                        icon={<ParkingIcon />}
-                                        label={`${statistics.total} chỗ`}
-                                        sx={{ 
-                                            backgroundColor: 'rgba(255,255,255,0.2)',
-                                            color: 'white',
-                                            fontWeight: 'bold'
-                                        }}
-                                        size="small"
-                                    />
+                                    <Chip icon={<ParkingIcon />} label={`${statistics.total} chỗ`} size="small" variant="outlined" />
                                 </Tooltip>
                                 <Tooltip title="Chỗ trống">
-                                    <Chip 
-                                        label={`${statistics.available} trống`}
-                                        sx={{ 
-                                            backgroundColor: statistics.available > 0 ? 'rgba(76,175,80,0.8)' : 'rgba(244,67,54,0.8)',
-                                            color: 'white',
-                                            fontWeight: 'bold'
-                                        }}
-                                        size="small"
-                                    />
+                                    <Chip label={`${statistics.available} trống`} size="small" color="success" variant="outlined" />
                                 </Tooltip>
                                 <Tooltip title="Tỷ lệ khả dụng">
-                                    <Badge 
-                                        badgeContent={`${statistics.availabilityRate}%`}
-                                        color={statistics.availabilityRate > 50 ? "success" : statistics.availabilityRate > 20 ? "warning" : "error"}
-                                        sx={{
-                                            '& .MuiBadge-badge': {
-                                                fontSize: '0.7rem',
-                                                fontWeight: 'bold'
-                                            }
-                                        }}
-                                    >
-                                        <Chip 
-                                            label="Khả dụng"
-                                            variant="outlined"
-                                            sx={{ 
-                                                borderColor: 'rgba(255,255,255,0.5)',
-                                                color: 'white'
-                                            }}
-                                            size="small"
-                                        />
-                                    </Badge>
+                                    <Chip label={`Khả dụng: ${statistics.availabilityRate}%`} size="small" variant="outlined" />
                                 </Tooltip>
                             </Box>
                         </Fade>
@@ -303,18 +298,10 @@ export default function UserDashboard() {
 
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                         <Tooltip title="Đặt chỗ của tôi">
-                            <Button 
-                                color="inherit" 
+                            <Button
                                 onClick={() => navigate("/user/my-reservations")}
                                 startIcon={<BookIcon />}
-                                variant="outlined"
-                                sx={{ 
-                                    borderColor: 'rgba(255,255,255,0.5)',
-                                    '&:hover': { 
-                                        borderColor: 'white',
-                                        backgroundColor: 'rgba(255,255,255,0.1)'
-                                    }
-                                }}
+                                variant="contained"
                             >
                                 Đặt chỗ
                             </Button>
@@ -325,44 +312,20 @@ export default function UserDashboard() {
                                 <Switch
                                     checked={liveOccupancy}
                                     onChange={(e) => setLiveOccupancy(e.target.checked)}
-                                    color="secondary"
+                                    color="primary"
                                 />
                             }
                             label="Live Updates"
-                            sx={{ color: 'white' }}
                         />
                         <Button
                             variant="outlined"
                             onClick={loadSpots}
                             disabled={isLoading}
                             startIcon={isLoading ? <CircularProgress size={16} /> : <RefreshIcon />}
-                            sx={{
-                                borderColor: 'rgba(255,255,255,0.5)',
-                                color: 'white',
-                                '&:hover': {
-                                    borderColor: 'white',
-                                    backgroundColor: 'rgba(255,255,255,0.1)',
-                                },
-                                '&:disabled': {
-                                    borderColor: 'rgba(255,255,255,0.3)',
-                                    color: 'rgba(255,255,255,0.5)',
-                                }
-                            }}
                         >
                             {isLoading ? 'Đang tải...' : 'Refresh Spots'}
                         </Button>
-                        <Button 
-                            color="inherit" 
-                            onClick={handleLogout}
-                            variant="outlined"
-                            sx={{ 
-                                borderColor: 'rgba(255,255,255,0.5)',
-                                '&:hover': { 
-                                    borderColor: 'white',
-                                    backgroundColor: 'rgba(255,255,255,0.1)'
-                                }
-                            }}
-                        >
+                        <Button onClick={handleLogout} variant="text" color="primary">
                             Đăng xuất
                         </Button>
                     </Box>
@@ -378,16 +341,15 @@ export default function UserDashboard() {
                             <Paper
                                 sx={{
                                     position: 'absolute',
-                                    top: 20,
+                                    top: 16,
                                     left: '50%',
                                     transform: 'translateX(-50%)',
                                     zIndex: 1000,
-                                    p: 2,
-                                    backgroundColor: 'rgba(255,255,255,0.95)',
-                                    backdropFilter: 'blur(10px)',
-                                    borderRadius: 3,
-                                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                                    p: 1.5,
+                                    borderRadius: 2,
                                 }}
+                                elevation={0}
+                                variant="outlined"
                             >
                                 <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <ParkingIcon color="primary" />
@@ -402,15 +364,18 @@ export default function UserDashboard() {
                             <Paper
                                 sx={{
                                     position: 'absolute',
-                                    top: 20,
+                                    top: 16,
                                     left: '50%',
                                     transform: 'translateX(-50%)',
                                     zIndex: 1000,
-                                    p: 2,
-                                    backgroundColor: 'rgba(244,67,54,0.1)',
-                                    borderLeft: '4px solid #f44336',
-                                    borderRadius: 1
+                                    p: 1.5,
+                                    borderRadius: 2,
+                                    borderLeft: '4px solid',
+                                    borderColor: 'error.main',
+                                    bgcolor: 'background.paper',
                                 }}
+                                elevation={0}
+                                variant="outlined"
                             >
                                 <Typography variant="body2" color="error">
                                     {error}
@@ -426,14 +391,15 @@ export default function UserDashboard() {
                     />
                 </Box>
 
-                {/* Enhanced Right Panel */}
+                {/* Right Panel */}
                 <Box sx={{ 
-                    width: 380, 
+                    width: 360, 
                     flexShrink: 0, 
                     height: "100%", 
                     overflow: "auto",
-                    borderLeft: '1px solid rgba(0,0,0,0.12)',
-                    backgroundColor: '#fafafa'
+                    borderLeft: '1px solid',
+                    borderColor: 'divider',
+                    backgroundColor: 'background.default'
                 }}>
                     <Container sx={{ p: 0 }}>
                         <RightPanel

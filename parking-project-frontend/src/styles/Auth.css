@@ -2,7 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Poppins", sans-serif;
+    font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
 .auth-page {
@@ -10,24 +10,26 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    padding: 24px;
 }
 
 .wrapper {
     width: 420px;
-    background: transparent;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(9px);
-    color: #fff;
+    background: #ffffff;
+    border: 1px solid #eef0f3;
+    color: #111827;
     border-radius: 12px;
-    padding: 30px 40px;
+    padding: 32px 32px;
+    box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
 }
 
 /* Keep the rest of the styles unchanged */
 
 
 .wrapper h1 {
-    font-size: 36px;
+    font-size: 28px;
     text-align: center;
+    font-weight: 700;
 }
 
 .wrapper .input-box {
@@ -40,42 +42,44 @@
 .input-box input {
     width: 100%;
     height: 100%;
-    background: transparent;
-    border: none;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
     outline: none;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    border-radius: 40px;
+    border-radius: 10px;
     font-size: 16px;
-    color: #fff;
-    padding: 20px 45px 20px 20px;
+    color: #111827;
+    padding: 12px 14px;
 }
 
 .input-box input::placeholder {
-    color: #fff;
+    color: #9ca3af;
 }
 
 .input-box i {
     position: absolute;
-    right: 20px;
-    top: 30%;
-    transform: translate(-50%);
-    font-size: 20px;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: #6b7280;
 }
 
 .wrapper .remember-forgot {
     display: flex;
     justify-content: space-between;
-    font-size: 14.5px;
-    margin: -15px 0 15px;
+    align-items: center;
+    font-size: 14px;
+    margin: 8px 0 16px;
+    color: #4b5563;
 }
 
 .remember-forgot label input {
-    accent-color: #fff;
-    margin-right: 3px;
+    accent-color: #2563eb;
+    margin-right: 6px;
 }
 
 .remember-forgot a {
-    color: #fff;
+    color: #2563eb;
     text-decoration: none;
 }
 
@@ -85,26 +89,27 @@
 
 .wrapper .btn {
     width: 100%;
-    height: 45px;
-    background: #fff;
-    border: none;
+    height: 44px;
+    background: #2563eb;
+    border: 1px solid #1d4ed8;
     outline: none;
-    border-radius: 40px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     cursor: pointer;
     font-size: 16px;
-    color: #333;
+    color: #ffffff;
     font-weight: 600;
 }
 
 .wrapper .register-link {
-    font-size: 14.5px;
+    font-size: 14px;
     text-align: center;
-    margin: 20px 0 15px;
+    margin: 16px 0 8px;
+    color: #4b5563;
 }
 
 .register-link p a {
-    color: #fff;
+    color: #2563eb;
     text-decoration: none;
     font-weight: 600;
 }

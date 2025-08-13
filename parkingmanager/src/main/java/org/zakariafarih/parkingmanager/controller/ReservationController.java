@@ -2,6 +2,8 @@
 package org.zakariafarih.parkingmanager.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -20,6 +22,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/reservations")
 public class ReservationController {
+    private static final Logger log = LoggerFactory.getLogger(ReservationController.class);
 
     @Autowired
     private ReservationService reservationService;
@@ -38,6 +41,10 @@ public class ReservationController {
     ) {
         CustomUserDetails principal = (CustomUserDetails) authentication.getPrincipal();
         Long userId = principal.getUser().getId();
+
+    // Debug: Log incoming times
+    log.info("Create reservation request: spotId={}, startTime={}, endTime={}, userId={}",
+        request.getParkingSpotId(), request.getStartTime(), request.getEndTime(), userId);
 
         Reservation reservation = reservationService.createReservation(
                 userId,
@@ -79,7 +86,7 @@ public class ReservationController {
         if (principal.getUser().getRole().name().equals("ROLE_ADMIN")) {
             return ResponseEntity.ok().body(List.of());
         }
-        Long userId = principal.getId();
+        Long userId = principal.getUser().getId();
         List<Reservation> myList = reservationService.getReservationsByUserId(userId);
         return ResponseEntity.ok(myList);
     }

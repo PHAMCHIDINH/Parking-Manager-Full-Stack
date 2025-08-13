@@ -3,33 +3,70 @@ import { createTheme } from '@mui/material/styles';
 export const theme = createTheme({
     palette: {
         primary: {
-            main: '#283593',
-            light: '#5c6bc0',
-            dark: '#1a237e',
+            // Calm, professional blue
+            main: '#2563eb',
+            light: '#3b82f6',
+            dark: '#1e40af',
             contrastText: '#ffffff',
         },
         secondary: {
-            main: '#ff6f00',
-            light: '#ffa040',
-            dark: '#c43e00',
+            // Neutral gray for accents (less color noise)
+            main: '#6b7280',
+            light: '#9ca3af',
+            dark: '#4b5563',
             contrastText: '#ffffff',
         },
         background: {
-            default: '#f0f2f5',
+            default: '#f7f8fa',
             paper: '#ffffff',
         },
         text: {
-            primary: '#212121',
-            secondary: '#424242',
+            primary: '#111827',
+            secondary: '#4b5563',
         },
+        divider: '#e5e7eb',
     },
+    typography: {
+        fontFamily:
+            "Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+        button: { textTransform: 'none', fontWeight: 600 },
+    },
+    shape: { borderRadius: 8 },
     components: {
+        MuiCssBaseline: {
+            styleOverrides: {
+                body: {
+                    backgroundColor: '#f7f8fa',
+                },
+            },
+        },
+        MuiPaper: {
+            styleOverrides: {
+                root: {
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    border: '1px solid #eef0f3',
+                },
+            },
+        },
+        MuiButton: {
+            defaultProps: { variant: 'contained' },
+        },
         MuiDrawer: {
             styleOverrides: {
                 paper: {
-                    backgroundColor: '#f5f7fa',
-                    border: 'none',
-                    boxShadow: '0px 0px 10px rgba(0, 0, 0, 0.15)',
+                    backgroundColor: '#f9fafb',
+                    borderRight: '1px solid #eef0f3',
+                    boxShadow: 'none',
+                },
+            },
+        },
+        MuiAppBar: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: '#ffffff',
+                    color: '#111827',
+                    boxShadow: 'none',
+                    borderBottom: '1px solid #eef0f3',
                 },
             },
         },

@@ -18,11 +18,9 @@ import {
     Grid,
     CircularProgress, // ⭐ Thêm import này
 } from "@mui/material";
-import { 
+import {
     Dashboard as DashboardIcon,
     DirectionsCar as CarIcon,
-    Visibility as VisibilityIcon,
-    VisibilityOff as VisibilityOffIcon,
     LocalParking as ParkingIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -36,17 +34,28 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import { Client, Message } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
-const baseURL = "http://localhost:8080";
+// Module-scope guard to avoid double WS connection in React StrictMode (dev)
+let adminWsInitialized = false;
 
 /**
  * Convert raw spot from GET /parking to SpotRecord
  */
-function toSpotRecord(spot: any): SpotRecord {
+function toSpotRecord(spot: unknown): SpotRecord {
+    const s = spot as {
+        label: string;
+        category: string;
+        status?: string;
+        occupied?: boolean;
+        coordinates?: string;
+        imageCoordinates?: string;
+    };
+    const occupiedBool = typeof s.occupied === 'boolean' ? s.occupied : s.status === 'OCCUPIED';
+    const geometryJson = s.coordinates || s.imageCoordinates;
     return {
-        spot_id: spot.label,
-        type: spot.category,
-        occupied: spot.occupied,
-        geometry: spot.coordinates ? JSON.parse(spot.coordinates) : undefined,
+        spot_id: s.label,
+        type: s.category,
+        occupied: !!occupiedBool,
+        geometry: geometryJson ? JSON.parse(geometryJson) : undefined,
     };
 }
 
@@ -61,7 +70,7 @@ export default function AdminDashboard() {
 
     // filters
     const [filterText, setFilterText] = useState("");
-    const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+    // Note: type filtering can be re-enabled when UI is wired
 
     // for live occupancy
     const [liveOccupancy, setLiveOccupancy] = useState(true);
@@ -89,7 +98,7 @@ export default function AdminDashboard() {
 
     const profileImageUrl =
         user?.profileImageUrl && !user.profileImageUrl.startsWith("http")
-            ? baseURL + user.profileImageUrl
+            ? window.location.origin.replace(/\/+$/, "") + user.profileImageUrl
             : user?.profileImageUrl;
 
     // Tối ưu hóa việc load spots với useCallback
@@ -98,7 +107,7 @@ export default function AdminDashboard() {
         setError(null);
         try {
             const resp = await API.get("/parking");
-            const data = resp.data as any[];
+            const data = resp.data as unknown[];
             setSpots(data.map(toSpotRecord));
         } catch (err) {
             console.error("Error loading spots:", err);
@@ -116,44 +125,82 @@ export default function AdminDashboard() {
     // optional WebSocket
     useEffect(() => {
         if (!liveOccupancy) return;
+        if (adminWsInitialized) {
+            console.log("[AdminDashboard] WebSocket already initialized (StrictMode guard)");
+            return;
+        }
+        adminWsInitialized = true;
 
-        const socket = new SockJS("http://localhost:8080/ws");
-        const stompClient = new Client({
-            webSocketFactory: () => socket as any,
-            onConnect: () => {
-                console.log("[AdminDashboard] STOMP connected!");
-                stompClient.subscribe("/topic/parking-updates", (msg: Message) => {
-                    const payload = JSON.parse(msg.body);
-                    console.log("[AdminDashboard] Received WebSocket update:", payload);
-                    if (Array.isArray(payload)) {
-                        console.log("[AdminDashboard] Updating all spots:", payload.length);
-                        setSpots(payload.map(toSpotRecord));
-                    } else {
-                        const updated = toSpotRecord(payload);
-                        console.log("[AdminDashboard] Updating single spot:", updated.spot_id);
-                        setSpots((prev) => {
-                            const idx = prev.findIndex((s) => s.spot_id === updated.spot_id);
-                            if (idx >= 0) {
-                                const copy = [...prev];
-                                copy[idx] = updated;
-                                return copy;
-                            }
-                            return [...prev, updated];
-                        });
+        const urls = [
+            "/ws", // dev via Vite proxy or same-origin prod
+            "http://localhost:8080/ws", // fallback direct to backend in dev
+        ];
+        let attemptIndex = 0;
+        let client: Client | null = null;
+
+        const connect = (url: string) => {
+            console.log(`[AdminDashboard] Trying WebSocket: ${url}`);
+            const socket = new SockJS(url);
+            const c = new Client({
+                webSocketFactory: () => socket as unknown as WebSocket,
+                reconnectDelay: 5000,
+                heartbeatIncoming: 10000,
+                heartbeatOutgoing: 10000,
+                debug: (msg) => console.log("[AdminDashboard] STOMP Debug:", msg),
+                onConnect: () => {
+                    console.log("[AdminDashboard] STOMP connected!");
+                    c.subscribe("/topic/parking-updates", (msg: Message) => {
+                        const payload = JSON.parse(msg.body);
+                        console.log("[AdminDashboard] Received WebSocket update:", payload);
+                        if (Array.isArray(payload)) {
+                            console.log("[AdminDashboard] Updating all spots:", payload.length);
+                            setSpots(payload.map(toSpotRecord));
+                        } else {
+                            const updated = toSpotRecord(payload);
+                            console.log("[AdminDashboard] Updating single spot:", updated.spot_id);
+                            setSpots((prev) => {
+                                const idx = prev.findIndex((s) => s.spot_id === updated.spot_id);
+                                if (idx >= 0) {
+                                    const copy = [...prev];
+                                    copy[idx] = updated;
+                                    return copy;
+                                }
+                                return [...prev, updated];
+                            });
+                        }
+                    });
+                },
+                onDisconnect: () => {
+                    console.log("[AdminDashboard] STOMP disconnected!");
+                },
+                onStompError: (frame) => {
+                    console.error("[AdminDashboard] STOMP error:", frame);
+                },
+                onWebSocketError: (e) => {
+                    console.error("[AdminDashboard] WebSocket error:", e);
+                },
+                onWebSocketClose: () => {
+                    console.warn("[AdminDashboard] WebSocket closed.");
+                    // try fallback once if first URL failed early
+                    if (attemptIndex < urls.length - 1) {
+                        attemptIndex += 1;
+                        console.warn(`[AdminDashboard] Retrying with fallback: ${urls[attemptIndex]}`);
+                        setTimeout(() => {
+                            c.deactivate();
+                            client = connect(urls[attemptIndex]);
+                        }, 250);
                     }
-                });
-            },
-            onDisconnect: () => {
-                console.log("[AdminDashboard] STOMP disconnected!");
-            },
-            onStompError: (frame) => {
-                console.error("[AdminDashboard] STOMP error:", frame);
-            },
-        });
-        stompClient.activate();
+                },
+            });
+            c.activate();
+            return c;
+        };
+
+        client = connect(urls[attemptIndex]);
 
         return () => {
-            stompClient.deactivate();
+            if (client) client.deactivate();
+            adminWsInitialized = false;
         };
     }, [liveOccupancy]);
 
@@ -168,20 +215,13 @@ export default function AdminDashboard() {
     // Tối ưu filter logic với useMemo
     const filteredSpots = useMemo(() => {
         return spots.filter((spot) => {
-            const matchesText = spot.spot_id.toLowerCase().includes(filterText.toLowerCase());
-            const matchesType =
-                selectedTypes.length === 0 || selectedTypes.includes(spot.type.toLowerCase());
-            return matchesText && matchesType;
+            return spot.spot_id.toLowerCase().includes(filterText.toLowerCase());
         });
-    }, [spots, filterText, selectedTypes]);
+    }, [spots, filterText]);
 
     // Tối ưu hóa handler cho filter
     const handleFilterChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setFilterText(e.target.value);
-    }, []);
-
-    const handleTypeFilter = useCallback((types: string[]) => {
-        setSelectedTypes(types);
     }, []);
 
     return (

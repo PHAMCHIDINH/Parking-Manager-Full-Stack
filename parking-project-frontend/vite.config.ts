@@ -13,4 +13,19 @@ export default defineConfig({
     // This will replace references to `global` with an empty object
     global: {},
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ws': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+        secure: false,
+      },
+    },
+  },
 })
