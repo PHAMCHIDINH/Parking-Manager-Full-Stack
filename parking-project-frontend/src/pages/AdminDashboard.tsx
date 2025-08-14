@@ -16,20 +16,17 @@ import {
     Paper,
     Container,
     Grid,
-    CircularProgress, // ⭐ Thêm import này
+    CircularProgress,
 } from "@mui/material";
-import {
-    Dashboard as DashboardIcon,
-    DirectionsCar as CarIcon,
-    LocalParking as ParkingIcon,
-} from "@mui/icons-material";
+// Icons removed to keep UI minimal and blue/white themed
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import API from "../api";
 import MainArea from "../components/MainArea";
 import RightPanel from "../components/RightPanel";
+import AdminReservationsPanel from "../components/AdminReservationsPanel";
 import { SpotRecord } from "../types";
-import RefreshIcon from "@mui/icons-material/Refresh";
+// Refresh icon removed; we use spinner only when loading
 
 import { Client, Message } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
@@ -67,6 +64,7 @@ export default function AdminDashboard() {
     const [selectedSpotId, setSelectedSpotId] = useState<string | undefined>();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [reservationsOpen, setReservationsOpen] = useState(false);
 
     // filters
     const [filterText, setFilterText] = useState("");
@@ -227,12 +225,9 @@ export default function AdminDashboard() {
     return (
         <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
             {/* Enhanced AppBar with gradient and better styling */}
-            <AppBar 
-                position="fixed" 
-                sx={{ 
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                }}
+            <AppBar
+                position="fixed"
+                sx={{ backgroundColor: 'primary.main', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}
             >
                 <Toolbar sx={{ display: "flex", justifyContent: "space-between", py: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -256,11 +251,10 @@ export default function AdminDashboard() {
                             </IconButton>
                         </Tooltip>
                         <Box>
-                            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <DashboardIcon />
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'common.white' }}>
                                 Admin Dashboard
                             </Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                            <Typography variant="caption" sx={{ opacity: 0.9, color: 'common.white' }}>
                                 Quản lý bãi đỗ xe thông minh
                             </Typography>
                         </Box>
@@ -270,41 +264,21 @@ export default function AdminDashboard() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Fade in={!isLoading}>
                             <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Tooltip title="Tổng số chỗ đỗ">
-                                    <Chip 
-                                        icon={<ParkingIcon />}
-                                        label={`${statistics.total} chỗ`}
-                                        sx={{ 
-                                            backgroundColor: 'rgba(255,255,255,0.2)',
-                                            color: 'white',
-                                            fontWeight: 'bold'
-                                        }}
-                                        size="small"
-                                    />
-                                </Tooltip>
-                                <Tooltip title="Đã sử dụng">
-                                    <Chip 
-                                        icon={<CarIcon />}
-                                        label={`${statistics.occupied} đã đỗ`}
-                                        sx={{ 
-                                            backgroundColor: statistics.occupied > 0 ? 'rgba(244,67,54,0.8)' : 'rgba(255,255,255,0.2)',
-                                            color: 'white',
-                                            fontWeight: 'bold'
-                                        }}
-                                        size="small"
-                                    />
-                                </Tooltip>
-                                <Tooltip title="Còn trống">
-                                    <Chip 
-                                        label={`${statistics.available} trống`}
-                                        sx={{ 
-                                            backgroundColor: statistics.available > 0 ? 'rgba(76,175,80,0.8)' : 'rgba(255,255,255,0.2)',
-                                            color: 'white',
-                                            fontWeight: 'bold'
-                                        }}
-                                        size="small"
-                                    />
-                                </Tooltip>
+                                <Chip 
+                                    label={`Tổng: ${statistics.total}`}
+                                    sx={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 'bold' }}
+                                    size="small"
+                                />
+                                <Chip 
+                                    label={`Đang đỗ: ${statistics.occupied}`}
+                                    sx={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 'bold' }}
+                                    size="small"
+                                />
+                                <Chip 
+                                    label={`Trống: ${statistics.available}`}
+                                    sx={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 'bold' }}
+                                    size="small"
+                                />
                                 <Tooltip title="Tỷ lệ sử dụng">
                                     <Badge 
                                         badgeContent={`${statistics.occupancyRate}%`}
@@ -319,10 +293,7 @@ export default function AdminDashboard() {
                                         <Chip 
                                             label="Sử dụng"
                                             variant="outlined"
-                                            sx={{ 
-                                                borderColor: 'rgba(255,255,255,0.5)',
-                                                color: 'white'
-                                            }}
+                                            sx={{ borderColor: 'rgba(255,255,255,0.7)', color: 'white' }}
                                             size="small"
                                         />
                                     </Badge>
@@ -351,7 +322,6 @@ export default function AdminDashboard() {
                                     variant="outlined"
                                     onClick={loadSpots}
                                     disabled={isLoading}
-                                    startIcon={isLoading ? <CircularProgress size={16} /> : <RefreshIcon />}
                                     sx={{
                                         borderColor: 'rgba(255,255,255,0.5)',
                                         color: 'white',
@@ -365,7 +335,20 @@ export default function AdminDashboard() {
                                         }
                                     }}
                                 >
-                                    {isLoading ? 'Đang tải...' : 'Refresh Spots'}
+                                    {isLoading ? <CircularProgress size={16} color="inherit" /> : 'Làm mới'}
+                                </Button>
+                            </Grid>
+                            <Grid item>
+                                <Button
+                                    variant="contained"
+                                    color="secondary"
+                                    onClick={() => setReservationsOpen(true)}
+                                    sx={{
+                                        color: 'white',
+                                        boxShadow: 'none'
+                                    }}
+                                >
+                                    Quản lý đặt chỗ
                                 </Button>
                             </Grid>
                         </Grid>
@@ -409,7 +392,6 @@ export default function AdminDashboard() {
                                 }}
                             >
                                 <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <ParkingIcon color="primary" />
                                     Đang tải dữ liệu bãi đỗ xe...
                                 </Typography>
                             </Paper>
@@ -447,7 +429,7 @@ export default function AdminDashboard() {
 
                 {/* Enhanced Right Panel */}
                 <Box sx={{ 
-                    width: 380, 
+                    width: { xs: '100%', md: 440, lg: 520 },
                     flexShrink: 0, 
                     height: "100%", 
                     overflow: "auto",
@@ -469,6 +451,7 @@ export default function AdminDashboard() {
                     </Container>
                 </Box>
             </Box>
+            <AdminReservationsPanel open={reservationsOpen} onClose={() => setReservationsOpen(false)} />
         </Box>
     );
 }

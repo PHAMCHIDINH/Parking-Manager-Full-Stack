@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
     Container,
@@ -18,15 +18,7 @@ import {
     CircularProgress,
     styled,
 } from "@mui/material";
-import {
-    Email,
-    Lock,
-    Visibility,
-    VisibilityOff,
-    Login as LoginIcon,
-    PersonAdd,
-    DirectionsCar,
-} from "@mui/icons-material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import BackgroundLoader from "../components/BackgroundLoader";
 
 // Styled Components - Đơn giản và clean
@@ -73,10 +65,10 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
             borderColor: '#e0e0e0',
         },
         '&:hover fieldset': {
-            borderColor: '#1976d2',
+            borderColor: theme.palette.primary.main,
         },
         '&.Mui-focused fieldset': {
-            borderColor: '#1976d2',
+            borderColor: theme.palette.primary.main,
         }
     }
 }));
@@ -101,7 +93,6 @@ const SimpleButton = styled(Button)(({ theme }) => ({
 
 const Login: React.FC = () => {
     const { login } = useAuth();
-    const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -116,7 +107,7 @@ const Login: React.FC = () => {
 
         try {
             await login(email, password);
-        } catch (err) {
+    } catch {
             setError("Invalid email or password. Please try again.");
         } finally {
             setLoading(false);
@@ -134,27 +125,12 @@ const Login: React.FC = () => {
                     <LoginCard elevation={0}>
                         {/* Brand Section */}
                         <BrandSection>
-                            <Box sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                mb: 1 
-                            }}>
-                                <DirectionsCar sx={{ 
-                                    fontSize: 32, 
-                                    color: '#1976d2',
-                                    mr: 1 
-                                }} />
-                                <Typography 
-                                    variant="h5" 
-                                    sx={{ 
-                                        fontWeight: '600',
-                                        color: '#333333',
-                                    }}
-                                >
-                                    ParkSmart
-                                </Typography>
-                            </Box>
+                            <Typography 
+                                variant="h5" 
+                                sx={{ fontWeight: 600, color: '#1976d2', mb: 0.5 }}
+                            >
+                                ParkSmart
+                            </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
                                 Sign in to your account
                             </Typography>
@@ -190,13 +166,6 @@ const Login: React.FC = () => {
                                 required
                                 disabled={loading}
                                 size="medium"
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Email sx={{ color: '#666666', fontSize: 20 }} />
-                                        </InputAdornment>
-                                    ),
-                                }}
                             />
 
                             {/* Password Field */}
@@ -211,11 +180,6 @@ const Login: React.FC = () => {
                                 disabled={loading}
                                 size="medium"
                                 InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Lock sx={{ color: '#666666', fontSize: 20 }} />
-                                        </InputAdornment>
-                                    ),
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton

@@ -1,14 +1,19 @@
 import React, { useState } from "react";
-import { Container, Box, Typography, TextField, Button } from "@mui/material";
+import { Container, Box, Typography, TextField, Button, Paper, styled } from "@mui/material";
 import API from "../api";
-import { useNavigate } from "react-router-dom";
+
+const Card = styled(Paper)(({ theme }) => ({
+    padding: theme.spacing(4),
+    borderRadius: theme.spacing(1.5),
+    backgroundColor: '#fff',
+    border: '1px solid #e0e0e0'
+}));
 
 const ForgotPassword: React.FC = () => {
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,21 +23,23 @@ const ForgotPassword: React.FC = () => {
         try {
             const response = await API.post("/auth/forgot-password?email=" + encodeURIComponent(email));
             setMessage(response.data.message || "Check your email for reset instructions");
-        } catch (err: any) {
-            setError(err.response?.data || "An error occurred");
+        } catch {
+            setError("An error occurred");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Container maxWidth="sm">
-            <Box sx={{ mt: 8, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <Typography variant="h4">Forgot Password</Typography>
-                <Typography variant="body1" sx={{ mt: 2 }}>
+        <Container maxWidth="sm" sx={{ py: 8 }}>
+            <Card elevation={0}>
+                <Typography variant="h4" color="primary" sx={{ fontWeight: 700, textAlign: 'center' }}>
+                    Forgot Password
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: 'center' }}>
                     Enter your email address to receive a password reset link.
                 </Typography>
-                <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: "100%" }}>
+                <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
                     <TextField
                         label="Email"
                         variant="outlined"
@@ -51,11 +58,11 @@ const ForgotPassword: React.FC = () => {
                             {message}
                         </Typography>
                     )}
-                    <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }} disabled={loading}>
+                    <Button type="submit" variant="contained" fullWidth sx={{ mt: 2 }} disabled={loading}>
                         {loading ? "Sending..." : "Send Reset Email"}
                     </Button>
                 </Box>
-            </Box>
+            </Card>
         </Container>
     );
 };

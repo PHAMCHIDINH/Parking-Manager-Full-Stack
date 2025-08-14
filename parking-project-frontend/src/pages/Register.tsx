@@ -17,14 +17,7 @@ import {
     styled,
     Divider,
 } from "@mui/material";
-import {
-    Email,
-    Lock,
-    Person,
-    Visibility,
-    VisibilityOff,
-    DirectionsCar,
-} from "@mui/icons-material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import BackgroundLoader from "../components/BackgroundLoader";
 
 // Reuse styled components từ Login
@@ -156,27 +149,9 @@ const Register: React.FC = () => {
                     <RegisterCard elevation={0}>
                         {/* Brand Section */}
                         <Box sx={{ textAlign: 'center', mb: 3 }}>
-                            <Box sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                mb: 1 
-                            }}>
-                                <DirectionsCar sx={{ 
-                                    fontSize: 32, 
-                                    color: '#1976d2',
-                                    mr: 1 
-                                }} />
-                                <Typography 
-                                    variant="h5" 
-                                    sx={{ 
-                                        fontWeight: '600',
-                                        color: '#333333',
-                                    }}
-                                >
-                                    ParkSmart
-                                </Typography>
-                            </Box>
+                            <Typography variant="h5" sx={{ fontWeight: 600, color: '#1976d2', mb: 0.5 }}>
+                                ParkSmart
+                            </Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
                                 Create your account
                             </Typography>
@@ -220,13 +195,6 @@ const Register: React.FC = () => {
                                 required
                                 disabled={loading}
                                 size="medium"
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Person sx={{ color: '#666666', fontSize: 20 }} />
-                                        </InputAdornment>
-                                    ),
-                                }}
                             />
 
                             <StyledTextField
@@ -241,13 +209,6 @@ const Register: React.FC = () => {
                                 error={email.length > 0 && !isEmailValid}
                                 helperText={email.length > 0 && !isEmailValid ? 'Email không hợp lệ' : ' '}
                                 size="medium"
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Email sx={{ color: '#666666', fontSize: 20 }} />
-                                        </InputAdornment>
-                                    ),
-                                }}
                             />
 
                             <StyledTextField
@@ -263,11 +224,6 @@ const Register: React.FC = () => {
                                 helperText={password.length > 0 && !isPasswordStrong ? 'Ít nhất 6 ký tự' : ' '}
                                 size="medium"
                                 InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Lock sx={{ color: '#666666', fontSize: 20 }} />
-                                        </InputAdornment>
-                                    ),
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton
@@ -296,11 +252,6 @@ const Register: React.FC = () => {
                                 helperText={confirmPassword.length > 0 && !doPasswordsMatch ? 'Mật khẩu xác nhận không khớp' : ' '}
                                 size="medium"
                                 InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Lock sx={{ color: '#666666', fontSize: 20 }} />
-                                        </InputAdornment>
-                                    ),
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton

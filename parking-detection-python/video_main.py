@@ -7,6 +7,11 @@ import threading
 import requests
 from ultralytics import YOLO
 from datetime import datetime
+from typing import Dict, List, Tuple, Optional
+try:
+    import torch
+except Exception:  # torch may not be installed in some environments
+    torch = None
 
 ##############################################################################
 # CONFIG - Video Processing
@@ -16,6 +21,15 @@ BASE_URL = "http://localhost:8080"
 GET_ALL_SPOTS_URL = f"{BASE_URL}/api/parking"
 DEFINE_CORNERS_URL = f"{BASE_URL}/api/parking/define-corners"
 PYTHON_OCC_URL = f"{BASE_URL}/api/parking/python-occupancies"
+
+"""
+Performance notes:
+- Replaces per-frame point-in-polygon with a precomputed label map (O(1) lookup per detection).
+- Reuses a single HTTP session for lower latency.
+- Optionally uses GPU + FP16 if available.
+- Filters YOLO classes to only vehicles of interest to speed up inference.
+- Skips resending occupancy if no change since last send.
+"""
 
 # YOLO model path
 YOLO_MODEL_PATH = 'z.pt'
@@ -32,8 +46,17 @@ OUTPUT_VIDEO_PATH = 'image/detection_output.mp4'
 OUTPUT_FRAME_PATH = 'image/current_frame.jpg'
 
 CONFIDENCE_THRESHOLD = 0.1
+IMG_SIZE = 640  # YOLO inference size (smaller is faster, 640 is a good default)
 UPDATE_INTERVAL = 2.0  # Gửi update mỗi 2 giây
-FRAME_SKIP = 3  # Process mỗi 3 frames để tăng performance
+FRAME_SKIP = 2  # Giảm để cập nhật nhanh hơn
+MIN_CHANGE_SEND_INTERVAL = 0.3  # Gửi ngay khi có thay đổi (cooldown tối thiểu)
+DISPLAY_WINDOW = True  # Set False for headless mode
+WRITE_FRAME_JPEG_QUALITY = 80  # Reduce disk I/O size
+
+# Classes of interest (will auto-map to model.names if available)
+CLASSES_OF_INTEREST = {
+    'car', 'truck', 'bus', 'van', 'suv', 'motorbike', 'motorcycle'
+}
 
 ##############################################################################
 # HELPER FUNCTIONS
@@ -57,6 +80,48 @@ def fetch_spots():
     except Exception as e:
         print(f"Error fetching spots from backend: {e}")
         return []
+
+def _parse_spot_coords(spots: List[dict]) -> List[Tuple[int, str, np.ndarray]]:
+    """Pre-parse JSON coordinates into numpy arrays.
+    Returns list of tuples: (spotId, label, pts[N,2] int32)
+    Only includes spots that have defined coordinates.
+    """
+    parsed = []
+    for sp in spots:
+        coords_str = sp.get("imageCoordinates")
+        if not coords_str:
+            continue
+        try:
+            coords = json.loads(coords_str)
+            pts = np.array(coords, dtype=np.int32)
+            if pts.ndim == 2 and pts.shape[1] == 2 and len(pts) >= 3:
+                parsed.append((sp["id"], sp["label"], pts))
+        except Exception:
+            continue
+    return parsed
+
+def _build_spot_label_map(frame_h: int, frame_w: int,
+                          parsed_spots: List[Tuple[int, str, np.ndarray]]):
+    """Create a label map image where each pixel stores the index of the spot it belongs to.
+    Returns:
+      label_map: HxW int32 image, 0 for background, i+1 for spot index i
+      idx_to_spot: list of dicts {id, label, pts}
+      id_to_idx: dict spotId -> index
+    """
+    label_map = np.zeros((frame_h, frame_w), dtype=np.int32)
+    idx_to_spot = []
+    id_to_idx: Dict[int, int] = {}
+
+    for i, (sid, lbl, pts) in enumerate(parsed_spots):
+        # Clip points inside frame bounds to avoid OpenCV errors
+        pts_clipped = pts.copy()
+        pts_clipped[:, 0] = np.clip(pts_clipped[:, 0], 0, frame_w - 1)
+        pts_clipped[:, 1] = np.clip(pts_clipped[:, 1], 0, frame_h - 1)
+        cv2.fillPoly(label_map, [pts_clipped.astype(np.int32)], color=i + 1)
+        idx_to_spot.append({"id": sid, "label": lbl, "pts": pts_clipped})
+        id_to_idx[sid] = i
+
+    return label_map, idx_to_spot, id_to_idx
 
 def define_parking_spots_via_gui(image_path, spots):
     """
@@ -175,112 +240,144 @@ def define_parking_spots_via_gui(image_path, spots):
     else:
         print("No corners defined.")
 
-def detect_occupied_spots(frame, model, spots):
+def _get_allowed_class_ids(model) -> Optional[List[int]]:
+    """Map CLASSES_OF_INTEREST names to model class ids, if available."""
+    try:
+        names_dict = model.model.names if hasattr(model, 'model') else model.names
+    except Exception:
+        names_dict = getattr(model, 'names', None)
+    if not isinstance(names_dict, (list, dict)):
+        return None
+    if isinstance(names_dict, list):
+        ids = [i for i, n in enumerate(names_dict) if str(n).lower() in CLASSES_OF_INTEREST]
+    else:
+        ids = [i for i, n in names_dict.items() if str(n).lower() in CLASSES_OF_INTEREST]
+    return ids if ids else None
+
+def detect_occupied_spots(
+    frame,
+    model,
+    spots,
+    label_map: Optional[np.ndarray] = None,
+    idx_to_spot: Optional[List[dict]] = None,
+    allowed_cls: Optional[List[int]] = None,
+    use_half: bool = False
+):
+    """Detect cars and compute occupied spots.
+    If label_map and idx_to_spot are provided, performs O(1) spot lookup per detection.
+    Returns (occupancy_list, detected_cars)
     """
-    Detect cars in frame and check which parking spots are occupied.
-    """
-    results = model(frame, conf=CONFIDENCE_THRESHOLD)
-    occupant_labels = set()
+    try:
+        results = model(frame, conf=CONFIDENCE_THRESHOLD, imgsz=IMG_SIZE,
+                        classes=allowed_cls, half=use_half)
+    except TypeError:
+        # 'half' may not be supported by some versions
+        results = model(frame, conf=CONFIDENCE_THRESHOLD, imgsz=IMG_SIZE,
+                        classes=allowed_cls)
+
     detected_cars = []
 
+    # Boolean occupied per index
+    occ_flags: Optional[np.ndarray] = None
+    if label_map is not None and idx_to_spot is not None:
+        occ_flags = np.zeros(len(idx_to_spot), dtype=bool)
+
     for result in results:
-        if not result.boxes:
+        if not hasattr(result, 'boxes') or result.boxes is None:
             continue
+        # xyxy tensor -> numpy
         for box, cls_i in zip(result.boxes.xyxy, result.boxes.cls):
-            cls_name = result.names[int(cls_i)]
-            if cls_name == "car":
-                x1, y1, x2, y2 = map(int, box)
-                cx = (x1 + x2) // 2
-                cy = (y1 + y2) // 2
-                detected_cars.append((x1, y1, x2, y2, cx, cy))
+            x1, y1, x2, y2 = map(int, box)
+            cx = max(0, min((x1 + x2) // 2, frame.shape[1] - 1))
+            cy = max(0, min((y1 + y2) // 2, frame.shape[0] - 1))
+            detected_cars.append((x1, y1, x2, y2, cx, cy))
 
-                # Kiểm tra từng spot
-                for sp in spots:
-                    label = sp["label"]
-                    coords_str = sp.get("imageCoordinates")
-                    if not coords_str:
-                        continue
-                    
-                    try:
-                        coords_list = json.loads(coords_str)
-                        pts = np.array(coords_list, dtype=np.int32)
-                        inside = cv2.pointPolygonTest(pts, (cx, cy), False)
-                        if inside >= 0:
-                            occupant_labels.add(label)
-                            break
-                    except:
-                        continue
+            if occ_flags is not None:
+                idx = int(label_map[cy, cx]) - 1  # label_map stores i+1
+                if idx >= 0:
+                    occ_flags[idx] = True
 
-    # Tạo danh sách occupancy - CHỈ cho spots có imageCoordinates
     occupancy_list = []
-    for sp in spots:
-        # Chỉ process spots có imageCoordinates được định nghĩa
-        coords_str = sp.get("imageCoordinates")
-        if not coords_str:
-            continue
-            
-        lbl = sp["label"]
-        sid = sp["id"]
-        is_occ = (lbl in occupant_labels)
-        occupancy_list.append({
-            "spotId": sid,
-            "occupied": is_occ
-        })
+    if occ_flags is not None:
+        for i, occ in enumerate(occ_flags):
+            occupancy_list.append({
+                "spotId": idx_to_spot[i]["id"],
+                "occupied": bool(occ)
+            })
+    else:
+        # Fallback to original, slower polygon test if label_map not provided
+        occupant_labels = set()
+        for _, _, _, _, cx, cy in detected_cars:
+            for sp in spots:
+                coords_str = sp.get("imageCoordinates")
+                if not coords_str:
+                    continue
+                try:
+                    pts = np.array(json.loads(coords_str), dtype=np.int32)
+                    inside = cv2.pointPolygonTest(pts, (cx, cy), False)
+                    if inside >= 0:
+                        occupant_labels.add(sp["label"])
+                        break
+                except Exception:
+                    continue
+        for sp in spots:
+            coords_str = sp.get("imageCoordinates")
+            if not coords_str:
+                continue
+            occupancy_list.append({
+                "spotId": sp["id"],
+                "occupied": sp["label"] in occupant_labels
+            })
 
     return occupancy_list, detected_cars
+
+_http_session: Optional[requests.Session] = None
+
+def _get_http_session() -> requests.Session:
+    global _http_session
+    if _http_session is None:
+        _http_session = requests.Session()
+    return _http_session
 
 def send_occupancies(occupancy_list):
     """Send occupancy data to backend."""
     try:
-        # Debug log
         occupied_count = len([x for x in occupancy_list if x['occupied']])
         total_count = len(occupancy_list)
         print(f"📡 Sending {total_count} spots data: {occupied_count} occupied, {total_count - occupied_count} free")
-        
-        resp = requests.post(PYTHON_OCC_URL, json=occupancy_list)
+        sess = _get_http_session()
+        resp = sess.post(PYTHON_OCC_URL, json=occupancy_list, timeout=5)
         resp.raise_for_status()
-        print(f"✓ Successfully sent occupancy data")
+        print("✓ Successfully sent occupancy data")
         return True
     except Exception as e:
         print(f"✗ Error sending occupancies: {e}")
         return False
 
-def annotate_frame(frame, spots, occupancy_list, detected_cars):
+def annotate_frame(frame, idx_to_spot: List[dict], occupancy_list, detected_cars):
     """
     Annotate frame with parking spots and detection results.
     """
     annotated = frame.copy()
     
     # Convert occupancy_list to map
-    occ_map = {}
-    for item in occupancy_list:
-        occ_map[item["spotId"]] = item["occupied"]
+    occ_map = {item["spotId"]: item["occupied"] for item in occupancy_list}
 
     # Draw parking spots
-    for sp in spots:
-        sid = sp["id"]
-        lbl = sp["label"]
-        coords_str = sp.get("imageCoordinates")
-        if not coords_str:
-            continue
-        
-        try:
-            coords = json.loads(coords_str)
-            pts = np.array(coords, dtype=np.int32)
+    for info in idx_to_spot:
+        sid = info["id"]
+        lbl = info["label"]
+        pts = info["pts"].astype(np.int32)
 
-            is_occ = occ_map.get(sid, False)
-            color = (0, 0, 255) if is_occ else (0, 255, 0)  # Red if occupied, Green if free
-            text_status = "OCCUPIED" if is_occ else "FREE"
+        is_occ = occ_map.get(sid, False)
+        color = (0, 0, 255) if is_occ else (0, 255, 0)  # Red if occupied, Green if free
+        text_status = "OCCUPIED" if is_occ else "FREE"
 
-            cv2.polylines(annotated, [pts], True, color, 2)
-            
-            # Label
-            if len(pts) > 0:
-                (tx, ty) = pts[0]
-                cv2.putText(annotated, f"{lbl}:{text_status}", (tx, ty - 5),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-        except:
-            continue
+        cv2.polylines(annotated, [pts], True, color, 2)
+        if len(pts) > 0:
+            (tx, ty) = pts[0]
+            cv2.putText(annotated, f"{lbl}:{text_status}", (tx, ty - 5),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
     # Draw detected cars
     for x1, y1, x2, y2, cx, cy in detected_cars:
@@ -295,7 +392,7 @@ def annotate_frame(frame, spots, occupancy_list, detected_cars):
                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     
     # Add stats
-    total_spots = len(spots)
+    total_spots = len(idx_to_spot)
     occupied_count = len([x for x in occupancy_list if x['occupied']])
     cv2.putText(annotated, f"Occupied: {occupied_count}/{total_spots}", (10, 60),
                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -312,7 +409,13 @@ class VideoProcessor:
         self.last_update_time = 0
         self.frame_count = 0
         self.running = False
-        
+        self.label_map = None
+        self.idx_to_spot = None
+        self.id_to_idx = None
+        self.allowed_cls = None
+        self.use_half = False
+        self._last_payload_fingerprint = None
+
     def start_processing(self):
         """Start video processing."""
         self.cap = cv2.VideoCapture(self.video_path)
@@ -326,6 +429,27 @@ class VideoProcessor:
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(OUTPUT_VIDEO_PATH, fourcc, fps, (width, height))
+
+        # Build spot label map once for O(1) occupancy lookup
+        parsed_spots = _parse_spot_coords(self.spots)
+        self.label_map, self.idx_to_spot, self.id_to_idx = _build_spot_label_map(height, width, parsed_spots)
+
+        # Determine allowed classes
+        self.allowed_cls = _get_allowed_class_ids(self.model)
+
+        # Try to use GPU + FP16 if available
+        try:
+            if torch is not None and torch.cuda.is_available():
+                self.model.to('cuda')
+                self.use_half = True  # use FP16 on GPU for speed
+        except Exception:
+            self.use_half = False
+
+        # Warmup (especially for GPU)
+        try:
+            _ = self.model(np.zeros((IMG_SIZE, IMG_SIZE, 3), dtype=np.uint8), imgsz=IMG_SIZE)
+        except Exception:
+            pass
         
         print(f"✓ Processing video: {self.video_path}")
         print(f"✓ Resolution: {width}x{height}, FPS: {fps}")
@@ -346,37 +470,54 @@ class VideoProcessor:
                 current_time = time.time()
                 
                 # Detect occupancy
-                occupancy_list, detected_cars = detect_occupied_spots(frame, self.model, self.spots)
+                occupancy_list, detected_cars = detect_occupied_spots(
+                    frame, self.model, self.spots,
+                    label_map=self.label_map,
+                    idx_to_spot=self.idx_to_spot,
+                    allowed_cls=self.allowed_cls,
+                    use_half=self.use_half,
+                )
                 
                 # Annotate frame
-                annotated_frame = annotate_frame(frame, self.spots, occupancy_list, detected_cars)
+                annotated_frame = annotate_frame(frame, self.idx_to_spot, occupancy_list, detected_cars)
                 
-                # Send updates to backend periodically
-                if current_time - self.last_update_time >= UPDATE_INTERVAL:
+                # Send updates: immediately on change (with a small cooldown),
+                # otherwise at a slower periodic interval as a fallback
+                payload_fingerprint = hash(tuple(x['occupied'] for x in occupancy_list))
+                changed = payload_fingerprint != self._last_payload_fingerprint
+                if changed and (current_time - self.last_update_time >= MIN_CHANGE_SEND_INTERVAL):
                     threading.Thread(target=send_occupancies, args=(occupancy_list,), daemon=True).start()
+                    self._last_payload_fingerprint = payload_fingerprint
+                    self.last_update_time = current_time
+                elif current_time - self.last_update_time >= UPDATE_INTERVAL:
+                    threading.Thread(target=send_occupancies, args=(occupancy_list,), daemon=True).start()
+                    self._last_payload_fingerprint = payload_fingerprint
                     self.last_update_time = current_time
                 
                 # Save current frame
-                cv2.imwrite(OUTPUT_FRAME_PATH, annotated_frame)
+                try:
+                    cv2.imwrite(OUTPUT_FRAME_PATH, annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), WRITE_FRAME_JPEG_QUALITY])
+                except Exception:
+                    pass
                 
                 # Write to output video
                 if self.out:
                     self.out.write(annotated_frame)
                 
                 # Display frame
-                display_frame = annotated_frame
-                # Resize for display if too large
-                if display_frame.shape[1] > 1280:
-                    display_frame, _ = resize_with_aspect_ratio(display_frame, 1280, 720)
-                
-                cv2.imshow('Parking Detection', display_frame)
+                if DISPLAY_WINDOW:
+                    display_frame = annotated_frame
+                    # Resize for display if too large
+                    if display_frame.shape[1] > 1280:
+                        display_frame, _ = resize_with_aspect_ratio(display_frame, 1280, 720)
+                    cv2.imshow('Parking Detection', display_frame)
             
             # Check for key press
-            key = cv2.waitKey(1) & 0xFF
+            key = cv2.waitKey(1) & 0xFF if DISPLAY_WINDOW else 255
             if key == ord('q'):
                 print("Stopping video processing...")
                 break
-            elif key == ord('p'):
+            elif key == ord('p') and DISPLAY_WINDOW:
                 print("Paused. Press any key to continue...")
                 cv2.waitKey(0)
         

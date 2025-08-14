@@ -5,7 +5,6 @@ import {
     Grid,
     Typography,
     Tooltip,
-    IconButton,
     List,
     ListItem,
     Paper,
@@ -13,39 +12,24 @@ import {
     CardContent,
     styled,
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EventIcon from '@mui/icons-material/Event';
-import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import moment, { Moment } from 'moment';
 
 // Styled Components
 const WeekPickerContainer = styled(Paper)(({ theme }) => ({
     padding: theme.spacing(3),
     borderRadius: theme.spacing(2),
-    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+    background: theme.palette.background.paper,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
     position: 'relative',
     overflow: 'hidden',
-    '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(255,255,255,0.1)',
-        backdropFilter: 'blur(10px)',
-        zIndex: -1,
-    }
 }));
 
 const WeekNavigationCard = styled(Card)(({ theme }) => ({
     marginBottom: theme.spacing(3),
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
+    background: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
     borderRadius: theme.spacing(2),
-    boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
 }));
 
 /** Represents a single selected interval. */
@@ -133,6 +117,14 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
             // Overlap check
             return slotStart.isBefore(interval.end) && slotEnd.isAfter(interval.start);
         });
+    };
+
+    /** Slot is in the past relative to now (slotEnd <= now). Disable and gray out. */
+    const isPastSlot = (day: Moment, hour: number) => {
+        const now = moment();
+        const slotStart = day.clone().hour(hour).minute(0);
+        const slotEnd = slotStart.clone().add(1, 'hour');
+        return slotEnd.isSameOrBefore(now);
     };
 
     /**
@@ -233,6 +225,7 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
     const renderTimeSlot = (day: Moment, hour: number) => {
         const slotStart = day.clone().hour(hour).minute(0);
         const busy = isSlotBusy(day, hour);
+        const past = isPastSlot(day, hour);
 
         const isSelectingStartSlot =
             selectingStart && slotStart.isSame(selectingStart, 'minute');
@@ -243,7 +236,8 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
         // Check if we're at max intervals and this isn't part of current selection
         const atMaxIntervals = selectedIntervals.length >= maxIntervals && !selectingStart && !inSelectedInterval;
 
-        let bgColor = '#e3f2fd';
+        // Blue theme colors
+        let bgColor = '#e3f2fd'; // default available slot (light blue)
         let cursor = 'pointer';
         let opacity = 1;
         let borderColor = '#bbdefb';
@@ -254,32 +248,39 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
             cursor = 'not-allowed';
             opacity = 0.6;
             borderColor = '#e0e0e0';
+        } else if (past) {
+            // Past slots are gray and non-interactive
+            bgColor = '#eeeeee';
+            cursor = 'not-allowed';
+            borderColor = '#e0e0e0';
+            opacity = 0.8;
         } else if (busy) {
             bgColor = '#ffebee';
             cursor = 'not-allowed';
-            borderColor = '#f8bbd9';
+            borderColor = '#ffcdd2';
         } else if (atMaxIntervals) {
-            bgColor = '#fff8e1';
+            bgColor = '#e3f2fd';
             cursor = 'not-allowed';
             opacity = 0.7;
-            borderColor = '#ffecb3';
+            borderColor = '#bbdefb';
         } else if (isSelectingStartSlot) {
-            bgColor = '#c8e6c9';
-            borderColor = '#4caf50';
-            hoverBg = '#a5d6a7';
+            bgColor = '#bbdefb';
+            borderColor = '#64b5f6';
+            hoverBg = '#90caf9';
         } else if (inSelectedInterval) {
-            bgColor = '#b2dfdb';
-            borderColor = '#26a69a';
-            hoverBg = '#80cbc4';
+            bgColor = '#90caf9';
+            borderColor = '#64b5f6';
+            hoverBg = '#64b5f6';
         }
 
         const getTooltipTitle = () => {
-            if (disabled) return '🔒 Đã khóa';
-            if (busy) return '❌ Đã có người đặt';
-            if (atMaxIntervals) return `⚠️ Đã đạt tối đa ${maxIntervals} khoảng thời gian`;
-            if (isSelectingStartSlot) return '🎯 Thời gian bắt đầu';
-            if (inSelectedInterval) return '✅ Đã chọn';
-            return '🟢 Có thể đặt';
+            if (disabled) return 'Đã khóa';
+            if (past) return 'Đã qua thời gian hiện tại';
+            if (busy) return 'Đã có người đặt';
+            if (atMaxIntervals) return `Đã đạt tối đa ${maxIntervals} khoảng thời gian`;
+            if (isSelectingStartSlot) return 'Thời gian bắt đầu';
+            if (inSelectedInterval) return 'Đã chọn';
+            return 'Có thể đặt';
         };
 
         return (
@@ -311,7 +312,7 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                             boxShadow: (disabled || busy || atMaxIntervals) ? '0 1px 3px rgba(0,0,0,0.1)' : '0 2px 6px rgba(0,0,0,0.15)',
                         },
                     }}
-                    onClick={() => handleSlotClick(day, hour)}
+                    onClick={() => { if (!disabled && !past && !busy && !atMaxIntervals) handleSlotClick(day, hour); }}
                 >
                     {hour}:00
                 </Box>
@@ -324,89 +325,87 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
             {/* Week Navigation Header */}
             <WeekNavigationCard elevation={0}>
                 <CardContent sx={{ p: 3 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
                         <Button 
                             variant="contained"
                             onClick={handlePrevWeek}
                             disabled={disabled}
-                            startIcon={<NavigateBeforeIcon />}
                             sx={{
                                 backgroundColor: 'rgba(255,255,255,0.2)',
                                 color: 'white',
                                 minWidth: 140,
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255,255,255,0.3)',
-                                },
-                                '&:disabled': {
-                                    backgroundColor: 'rgba(255,255,255,0.1)',
-                                    color: 'rgba(255,255,255,0.5)',
-                                }
+                                '&:hover': { backgroundColor: 'rgba(255,255,255,0.35)' },
+                                '&:disabled': { opacity: 0.6 }
                             }}
                         >
                             Tuần trước
                         </Button>
-                        
+
                         <Box sx={{ textAlign: 'center', flex: 1, mx: 3 }}>
                             <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                                <EventIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                                 {weekStart.format('DD MMM')} - {weekStart.clone().add(6, 'days').format('DD MMM YYYY')}
                             </Typography>
                             <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                                Chọn thời gian đặt chỗ đỗ xe
+                                Chọn thời gian đặt chỗ
                             </Typography>
                         </Box>
-                        
-                        <Button 
-                            variant="contained"
-                            onClick={handleNextWeek}
-                            disabled={disabled}
-                            endIcon={<NavigateNextIcon />}
-                            sx={{
-                                backgroundColor: 'rgba(255,255,255,0.2)',
-                                color: 'white',
-                                minWidth: 140,
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255,255,255,0.3)',
-                                },
-                                '&:disabled': {
-                                    backgroundColor: 'rgba(255,255,255,0.1)',
-                                    color: 'rgba(255,255,255,0.5)',
-                                }
-                            }}
-                        >
-                            Tuần sau
-                        </Button>
+
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Button 
+                                variant="contained"
+                                onClick={handleNextWeek}
+                                disabled={disabled}
+                                sx={{
+                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                    color: 'white',
+                                    minWidth: 140,
+                                    '&:hover': { backgroundColor: 'rgba(255,255,255,0.35)' },
+                                    '&:disabled': { opacity: 0.6 }
+                                }}
+                            >
+                                Tuần sau
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                color="inherit"
+                                disabled={disabled || selectedIntervals.length === 0}
+                                onClick={() => setSelectedIntervals([])}
+                                sx={{ ml: 1, borderColor: 'rgba(255,255,255,0.6)', color: 'white' }}
+                            >
+                                Xóa tất cả
+                            </Button>
+                        </Box>
                     </Box>
                 </CardContent>
             </WeekNavigationCard>
 
             {error && (
                 <Box sx={{ 
-                    mb: 2, 
-                    p: 2, 
-                    backgroundColor: 'error.light', 
-                    color: 'error.contrastText',
+                    mb: 2,
+                    p: 2,
+                    backgroundColor: 'rgba(33,150,243,0.08)',
+                    color: 'primary.main',
                     borderRadius: 1,
                     border: '1px solid',
-                    borderColor: 'error.main'
+                    borderColor: 'primary.light'
                 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                        ⚠️ {error}
+                        {error}
                     </Typography>
                 </Box>
             )}
 
             {/* Usage Statistics */}
             <Box sx={{ 
-                mb: 3, 
-                p: 3, 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                mb: 3,
+                p: 2.5,
+                backgroundColor: '#e3f2fd',
                 borderRadius: 2,
-                color: 'white',
-                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+                color: 'primary.dark',
+                border: '1px solid #bbdefb'
             }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', textAlign: 'center' }}>
-                    📊 Thống kê đặt chỗ
+                <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 'bold', textAlign: 'center', color: 'primary.main' }}>
+                    Thống kê đặt chỗ
                 </Typography>
                 <Grid container spacing={3}>
                     <Grid item xs={4}>
@@ -415,14 +414,13 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                                 Khoảng thời gian
                             </Typography>
                             <Typography variant="h5" sx={{ 
-                                color: selectedIntervals.length >= maxIntervals ? '#ffeb3b' : 'white',
-                                fontWeight: 'bold',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                                color: selectedIntervals.length >= maxIntervals ? 'warning.main' : 'primary.main',
+                                fontWeight: 'bold'
                             }}>
                                 {selectedIntervals.length} / {maxIntervals}
                             </Typography>
                             {selectedIntervals.length >= maxIntervals && (
-                                <Typography variant="caption" sx={{ color: '#ffeb3b' }}>
+                                <Typography variant="caption" sx={{ color: 'warning.main' }}>
                                     Đã đạt tối đa
                                 </Typography>
                             )}
@@ -434,14 +432,13 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                                 Tổng thời gian
                             </Typography>
                             <Typography variant="h5" sx={{ 
-                                color: getTotalReservationHours() >= maxReservationHours ? '#ffeb3b' : 'white',
-                                fontWeight: 'bold',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                                color: getTotalReservationHours() >= maxReservationHours ? 'warning.main' : 'primary.main',
+                                fontWeight: 'bold'
                             }}>
                                 {getTotalReservationHours().toFixed(1)} / {maxReservationHours}h
                             </Typography>
                             {getTotalReservationHours() >= maxReservationHours && (
-                                <Typography variant="caption" sx={{ color: '#ffeb3b' }}>
+                                <Typography variant="caption" sx={{ color: 'warning.main' }}>
                                     Đã đạt giới hạn
                                 </Typography>
                             )}
@@ -453,11 +450,10 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                                 Trạng thái
                             </Typography>
                             <Typography variant="h5" sx={{ 
-                                color: disabled ? '#ffeb3b' : '#4caf50',
-                                fontWeight: 'bold',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                                color: disabled ? 'warning.main' : 'primary.main',
+                                fontWeight: 'bold'
                             }}>
-                                {disabled ? '🔒 Khóa' : '✅ Hoạt động'}
+                                {disabled ? 'Khóa' : 'Hoạt động'}
                             </Typography>
                         </Box>
                     </Grid>
@@ -472,16 +468,15 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
             }}>
                 {daysInWeek.map(day => (
                     <Grid item xs={12 / 7} key={day.toString()}>
-                        <Box
+            <Box
                             sx={{
                                 textAlign: 'center',
                                 mb: 1,
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                color: 'white',
-                                p: 1.5,
+                backgroundColor: '#1976d2',
+                color: 'white',
+                p: 1,
                                 borderRadius: 1,
-                                fontWeight: 'bold',
-                                boxShadow: '0 2px 4px rgba(102, 126, 234, 0.3)'
+                fontWeight: 'bold'
                             }}
                         >
                             <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
@@ -502,20 +497,18 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
 
             {/* List of selected intervals */}
             <Box sx={{ 
-                mt: 4, 
-                p: 3, 
-                backgroundColor: 'white', 
+                mt: 4,
+                p: 2.5,
+                backgroundColor: 'white',
                 borderRadius: 2,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                border: '1px solid #e0e0e0'
             }}>
                 <Typography variant="h6" sx={{ 
-                    mb: 2, 
+                    mb: 2,
                     fontWeight: 'bold',
-                    color: 'primary.main',
-                    display: 'flex',
-                    alignItems: 'center'
+                    color: 'primary.main'
                 }}>
-                    📋 Danh sách thời gian đã chọn
+                    Danh sách thời gian đã chọn
                 </Typography>
                 {selectedIntervals.length === 0 ? (
                     <Box sx={{ 
@@ -526,7 +519,7 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                         border: '2px dashed #dee2e6'
                     }}>
                         <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
-                            🕐 Chưa chọn thời gian nào
+                            Chưa chọn thời gian nào
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                             Nhấp vào các ô thời gian để bắt đầu đặt chỗ
@@ -544,38 +537,30 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                                         backgroundColor: 'white',
                                         borderRadius: 1,
                                         border: '1px solid #e0e0e0',
-                                        '&:hover': {
-                                            backgroundColor: '#f5f5f5'
-                                        }
+                                        '&:hover': { backgroundColor: '#f5f5f5' }
                                     }}
                                     secondaryAction={
-                                        <IconButton 
-                                            edge="end" 
+                                        <Button
                                             onClick={() => handleRemoveInterval(idx)}
                                             disabled={disabled}
-                                            sx={{
-                                                backgroundColor: 'error.light',
-                                                color: 'error.main',
-                                                '&:hover': {
-                                                    backgroundColor: 'error.main',
-                                                    color: 'white'
-                                                }
-                                            }}
+                                            size="small"
+                                            variant="outlined"
+                                            color="error"
                                         >
-                                            <DeleteIcon />
-                                        </IconButton>
+                                            Xóa
+                                        </Button>
                                     }
                                 >
                                     <Box sx={{ flex: 1 }}>
                                         <Typography variant="body1" sx={{ 
                                             opacity: disabled ? 0.6 : 1,
-                                            fontWeight: 'medium',
+                                            fontWeight: 500,
                                             mb: 0.5
                                         }}>
-                                            🎯 Khoảng {idx + 1}: {interval.start.format('dddd, DD/MM/YYYY')}
+                                            Khoảng {idx + 1}: {interval.start.format('dddd, DD/MM/YYYY')}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary">
-                                            ⏰ {interval.start.format('HH:mm')} - {interval.end.format('HH:mm')}
+                                            {interval.start.format('HH:mm')} - {interval.end.format('HH:mm')}
                                             <Typography 
                                                 component="span" 
                                                 variant="caption" 
@@ -583,8 +568,8 @@ const WeekPicker: React.FC<WeekPickerProps> = ({
                                                     ml: 2, 
                                                     px: 1,
                                                     py: 0.5,
-                                                    backgroundColor: 'primary.light',
-                                                    color: 'white',
+                                                    backgroundColor: '#e3f2fd',
+                                                    color: 'primary.main',
                                                     borderRadius: 1,
                                                     fontWeight: 'bold'
                                                 }}

@@ -16,12 +16,7 @@ import {
     Container,
     CircularProgress,
 } from "@mui/material";
-import { 
-    Person as PersonIcon,
-    LocalParking as ParkingIcon,
-    BookOnline as BookIcon,
-    Refresh as RefreshIcon,
-} from "@mui/icons-material";
+// Icons removed to keep UI minimal and blue/white themed
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import API from "../api";
@@ -255,8 +250,8 @@ export default function UserDashboard() {
 
     return (
         <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-            {/* AppBar: clean and neutral per theme */}
-            <AppBar position="fixed">
+            {/* AppBar: blue and white theme */}
+            <AppBar position="fixed" sx={{ backgroundColor: 'primary.main' }}>
                 <Toolbar sx={{ display: "flex", justifyContent: "space-between", py: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                         <Tooltip title="Hồ sơ cá nhân">
@@ -269,11 +264,10 @@ export default function UserDashboard() {
                             </IconButton>
                         </Tooltip>
                         <Box>
-                            <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <PersonIcon />
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: 'common.white' }}>
                                 {user?.name || "User Dashboard"}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            <Typography variant="caption" sx={{ color: 'common.white', opacity: 0.9 }}>
                                 Tìm kiếm và đặt chỗ đỗ xe
                             </Typography>
                         </Box>
@@ -283,29 +277,17 @@ export default function UserDashboard() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Fade in={!isLoading}>
                             <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Tooltip title="Tổng số chỗ đỗ">
-                                    <Chip icon={<ParkingIcon />} label={`${statistics.total} chỗ`} size="small" variant="outlined" />
-                                </Tooltip>
-                                <Tooltip title="Chỗ trống">
-                                    <Chip label={`${statistics.available} trống`} size="small" color="success" variant="outlined" />
-                                </Tooltip>
-                                <Tooltip title="Tỷ lệ khả dụng">
-                                    <Chip label={`Khả dụng: ${statistics.availabilityRate}%`} size="small" variant="outlined" />
-                                </Tooltip>
+                                <Chip label={`Tổng: ${statistics.total}`} size="small" sx={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                                <Chip label={`Trống: ${statistics.available}`} size="small" sx={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                                <Chip label={`Khả dụng: ${statistics.availabilityRate}%`} size="small" sx={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white' }} />
                             </Box>
                         </Fade>
                     </Box>
 
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                        <Tooltip title="Đặt chỗ của tôi">
-                            <Button
-                                onClick={() => navigate("/user/my-reservations")}
-                                startIcon={<BookIcon />}
-                                variant="contained"
-                            >
-                                Đặt chỗ
-                            </Button>
-                        </Tooltip>
+                        <Button onClick={() => navigate("/user/my-reservations")} variant="outlined" sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.6)' }}>
+                            Đặt chỗ
+                        </Button>
                         
                         <FormControlLabel
                             control={
@@ -321,9 +303,9 @@ export default function UserDashboard() {
                             variant="outlined"
                             onClick={loadSpots}
                             disabled={isLoading}
-                            startIcon={isLoading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                            sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.6)' }}
                         >
-                            {isLoading ? 'Đang tải...' : 'Refresh Spots'}
+                            {isLoading ? <CircularProgress size={16} color="inherit" /> : 'Làm mới'}
                         </Button>
                         <Button onClick={handleLogout} variant="text" color="primary">
                             Đăng xuất
@@ -352,7 +334,6 @@ export default function UserDashboard() {
                                 variant="outlined"
                             >
                                 <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <ParkingIcon color="primary" />
                                     Đang tải dữ liệu bãi đỗ xe...
                                 </Typography>
                             </Paper>
@@ -393,7 +374,7 @@ export default function UserDashboard() {
 
                 {/* Right Panel */}
                 <Box sx={{ 
-                    width: 360, 
+                    width: { xs: '100%', md: 420, lg: 500 },
                     flexShrink: 0, 
                     height: "100%", 
                     overflow: "auto",

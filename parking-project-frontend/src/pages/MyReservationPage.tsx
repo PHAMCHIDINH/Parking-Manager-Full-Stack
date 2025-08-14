@@ -10,12 +10,8 @@ import {
     Grid,
     Chip,
     Button,
-    IconButton,
     Divider
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import LocalParkingIcon from "@mui/icons-material/LocalParking";
 import API from "../api";
 import { 
     parseBackendTime, 
@@ -72,15 +68,9 @@ const MyReservationsPage: React.FC = () => {
     if (loading) {
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Box sx={{ 
-                    textAlign: "center",
-                    py: 8,
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: 3,
-                    color: 'white'
-                }}>
-                    <CircularProgress sx={{ color: 'white', mb: 2 }} size={60} />
-                    <Typography variant="h6">⏳ Đang tải danh sách đặt chỗ...</Typography>
+                <Box sx={{ textAlign: "center", py: 8 }}>
+                    <CircularProgress sx={{ mb: 2 }} size={60} />
+                    <Typography variant="h6">Đang tải danh sách đặt chỗ...</Typography>
                 </Box>
             </Container>
         );
@@ -89,20 +79,10 @@ const MyReservationsPage: React.FC = () => {
     if (error) {
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Box sx={{ 
-                    textAlign: "center",
-                    py: 8,
-                    backgroundColor: 'error.light',
-                    color: 'error.contrastText',
-                    borderRadius: 3
-                }}>
-                    <Typography variant="h6">❌ {error}</Typography>
-                    <Button 
-                        variant="contained" 
-                        onClick={loadMyReservations}
-                        sx={{ mt: 2, backgroundColor: 'white', color: 'error.main' }}
-                    >
-                        🔄 Thử lại
+                <Box sx={{ textAlign: "center", py: 8 }}>
+                    <Typography variant="h6" color="error">{error}</Typography>
+                    <Button variant="outlined" onClick={loadMyReservations} sx={{ mt: 2 }}>
+                        Thử lại
                     </Button>
                 </Box>
             </Container>
@@ -112,20 +92,11 @@ const MyReservationsPage: React.FC = () => {
     if (reservations.length === 0) {
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Box sx={{ 
-                    textAlign: "center",
-                    py: 8,
-                    backgroundColor: '#f8f9fa',
-                    borderRadius: 3,
-                    border: '2px dashed #dee2e6'
-                }}>
-                    <LocalParkingIcon sx={{ fontSize: 80, color: 'grey.400', mb: 2 }} />
-                    <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.secondary' }}>
-                        📭 Chưa có đặt chỗ nào
+                <Box sx={{ textAlign: "center", py: 8 }}>
+                    <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                        Chưa có đặt chỗ nào
                     </Typography>
-                    <Typography variant="body1" color="text.secondary">
-                        Bạn chưa đặt chỗ đỗ xe nào. Hãy bắt đầu đặt chỗ đầu tiên!
-                    </Typography>
+                    <Typography variant="body1" color="text.secondary">Bạn chưa đặt chỗ đỗ xe nào.</Typography>
                 </Box>
             </Container>
         );
@@ -134,29 +105,11 @@ const MyReservationsPage: React.FC = () => {
     return (
         <Container maxWidth="lg" sx={{ py: 4 }}>
             {/* Header */}
-            <Box sx={{ 
-                mb: 4, 
-                p: 4, 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: 3,
-                color: 'white',
-                textAlign: 'center'
-            }}>
-                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 2 }}>
-                    🚗 Đặt chỗ của tôi
+            <Box sx={{ mb: 4, p: 2, textAlign: 'center' }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Đặt chỗ của tôi
                 </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                    Quản lý tất cả các chỗ đỗ xe bạn đã đặt
-                </Typography>
-                <Chip 
-                    label={`${reservations.length} đặt chỗ`}
-                    sx={{ 
-                        mt: 2,
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        color: 'white',
-                        fontWeight: 'bold'
-                    }}
-                />
+                <Chip label={`${reservations.length} đặt chỗ`} variant="outlined" />
             </Box>
 
             {/* Reservations Grid */}
@@ -170,14 +123,15 @@ const MyReservationsPage: React.FC = () => {
 
                     return (
                         <Grid item xs={12} md={6} lg={4} key={res.id}>
-                            <Card sx={{ 
+                                <Card sx={{ 
                                 height: '100%',
                                 borderRadius: 2,
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                border: isActive ? '3px solid #4caf50' : isPast ? '1px solid #e0e0e0' : '2px solid #2196f3',
+                                    boxShadow: 1,
+                                    border: '1px solid',
+                                    borderColor: isActive ? 'success.light' : isPast ? 'divider' : 'primary.light',
                                 '&:hover': {
-                                    transform: 'translateY(-4px)',
-                                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
+                                        transform: 'translateY(-2px)',
+                                        boxShadow: 3
                                 },
                                 transition: 'all 0.3s ease'
                             }}>
@@ -185,52 +139,24 @@ const MyReservationsPage: React.FC = () => {
                                     {/* Status Badge */}
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                                         <Chip 
-                                            label={
-                                                isActive ? '🟢 Đang sử dụng' : 
-                                                isUpcoming ? '⏳ Sắp tới' : 
-                                                '✅ Đã hoàn thành'
-                                            }
+                                            label={isActive ? 'Đang sử dụng' : isUpcoming ? 'Sắp tới' : 'Đã hoàn thành'}
                                             size="small"
-                                            sx={{
-                                                backgroundColor: 
-                                                    isActive ? '#4caf50' : 
-                                                    isUpcoming ? '#ff9800' : 
-                                                    '#9e9e9e',
-                                                color: 'white',
-                                                fontWeight: 'bold'
-                                            }}
+                                            color={isActive ? 'success' : isUpcoming ? 'warning' : 'default'}
                                         />
                                         {(isUpcoming || isActive) && (
-                                            <IconButton 
-                                                onClick={() => handleCancelReservation(res.id)}
-                                                sx={{
-                                                    backgroundColor: 'error.light',
-                                                    color: 'error.main',
-                                                    '&:hover': {
-                                                        backgroundColor: 'error.main',
-                                                        color: 'white'
-                                                    }
-                                                }}
-                                                size="small"
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
+                                            <Button onClick={() => handleCancelReservation(res.id)} size="small" color="error" variant="text">
+                                                Hủy
+                                            </Button>
                                         )}
                                     </Box>
 
                                     {/* Reservation Details */}
                                     <Box sx={{ mb: 2 }}>
-                                        <Typography variant="h6" sx={{ 
-                                            fontWeight: 'bold',
-                                            mb: 1,
-                                            display: 'flex',
-                                            alignItems: 'center'
-                                        }}>
-                                            <LocalParkingIcon sx={{ mr: 1, color: 'primary.main' }} />
+                                        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
                                             Chỗ {res.parkingSpot.label}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                            🏷️ Mã đặt chỗ: #{res.id}
+                                            Mã đặt chỗ: #{res.id}
                                         </Typography>
                                     </Box>
 
@@ -238,24 +164,16 @@ const MyReservationsPage: React.FC = () => {
 
                                     {/* Time Information */}
                                     <Box sx={{ mb: 2 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                            <AccessTimeIcon sx={{ mr: 1, color: 'info.main', fontSize: 20 }} />
-                                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                                Thời gian đặt chỗ
-                                            </Typography>
-                                        </Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                                            Thời gian đặt chỗ
+                                        </Typography>
                                         <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                                            📅 {formatDisplayDate(startTime)}
+                                            {formatDisplayDate(startTime)}
                                         </Typography>
                                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                            🕐 {formatDisplayHour(startTime)} - {formatDisplayHour(endTime)}
+                                            {formatDisplayHour(startTime)} - {formatDisplayHour(endTime)}
                                         </Typography>
-                                        <Chip 
-                                            label={`⏱️ ${duration.toFixed(1)} giờ`}
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{ mr: 1 }}
-                                        />
+                                        <Chip label={`${duration.toFixed(1)} giờ`} size="small" variant="outlined" sx={{ mr: 1 }} />
                                         {/* Thêm thông tin relative time */}
                                         <Chip 
                                             label={
@@ -273,7 +191,7 @@ const MyReservationsPage: React.FC = () => {
                                     {isUpcoming && (
                                         <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e0e0e0' }}>
                                             <Typography variant="caption" color="text.secondary">
-                                                🔔 Bắt đầu {formatRelativeTime(startTime)}
+                                                Bắt đầu {formatRelativeTime(startTime)}
                                             </Typography>
                                         </Box>
                                     )}

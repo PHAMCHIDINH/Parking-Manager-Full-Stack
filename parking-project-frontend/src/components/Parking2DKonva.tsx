@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Stage, Layer, Line } from "react-konva";
 import { useTheme } from "@mui/material/styles";
 import { CircularProgress, Box } from "@mui/material";
@@ -223,8 +223,8 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
             return feature;
         });
 
-        // Update spotsData with the merged features
-        setSpotsData((prev) => (prev ? { ...prev, features: updatedFeatures } : prev));
+    // Update spotsData with the merged features
+    setSpotsData((prev) => (prev ? { ...prev, features: updatedFeatures } : prev));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [spots, spotsData?.features?.length]); // Re-run when spots prop changes or GeoJSON is loaded
 
@@ -232,11 +232,13 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
         if (!spotsData && !linesData && !polysData) return;
 
         const coords: [number, number][] = [];
-        const gatherAll = (input: any) => {
-            if (Array.isArray(input) && typeof input[0] === "number") {
-                coords.push(input as [number, number]);
-            } else if (Array.isArray(input)) {
-                input.forEach((sub: any) => gatherAll(sub));
+        const gatherAll = (input: unknown) => {
+            if (Array.isArray(input)) {
+                if (typeof input[0] === "number") {
+                    coords.push(input as [number, number]);
+                } else {
+                    (input as unknown[]).forEach((sub) => gatherAll(sub));
+                }
             }
         };
 
@@ -295,8 +297,8 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
         if (!polysData?.features) return null;
         return polysData.features.map((feat, idx) => {
             if (feat.geometry.type !== "Polygon") return null;
-            const ring = feat.geometry.coordinates[0];
-            const points = ring.map((pt: number[]) => [
+        const ring = feat.geometry.coordinates[0] as number[][];
+        const points = ring.map((pt: number[]) => [
                 pt[0] * scale + offset.x,
                 -pt[1] * scale + offset.y,
             ]);
@@ -328,6 +330,8 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
         });
     }
 
+    const handleSelect = (id: string) => onSpotSelect(id);
+
     function renderSpots() {
         if (!spotsData?.features) return null;
         return spotsData.features.map((feat, idx) => {
@@ -336,12 +340,12 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
             const isSelected = spotId === selectedSpotId;
 
             if (feat.geometry.type === "Polygon") {
-                const ring = feat.geometry.coordinates[0];
+                const ring = feat.geometry.coordinates[0] as number[][];
                 const points = ring.map((pt: number[]) => [
                     pt[0] * scale + offset.x,
                     -pt[1] * scale + offset.y,
                 ]);
-                return (
+        return (
                     <Line
                         key={`spot-poly-${spotId}-${idx}`}
                         points={points.flat()}
@@ -349,18 +353,18 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
                         fill={isSelected ? "rgba(255,255,0,0.6)" : getFillColor(status)}
                         stroke={isSelected ? "yellow" : "gray"}
                         strokeWidth={2}
-                        onClick={() => onSpotSelect(spotId)}
+            onClick={() => handleSelect(spotId)}
                     />
                 );
             } else if (feat.geometry.type === "MultiPolygon") {
-                const multi = feat.geometry.coordinates as number[][][];
+                const multi = feat.geometry.coordinates as unknown as number[][][];
                 return multi.map((poly, mpIdx) => {
-                    const ring = poly[0];
+                    const ring = (poly[0] as unknown) as number[][];
                     const points = ring.map((pt: number[]) => [
                         pt[0] * scale + offset.x,
                         -pt[1] * scale + offset.y,
                     ]);
-                    return (
+            return (
                         <Line
                             key={`spot-mpoly-${spotId}-${idx}-${mpIdx}`}
                             points={points.flat()}
@@ -368,7 +372,7 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
                             fill={isSelected ? "rgba(255,255,0,0.6)" : getFillColor(status)}
                             stroke={isSelected ? "yellow" : "gray"}
                             strokeWidth={2}
-                            onClick={() => onSpotSelect(spotId)}
+                onClick={() => handleSelect(spotId)}
                         />
                     );
                 });
@@ -388,4 +392,4 @@ const Parking2DKonva: React.FC<Parking2DKonvaProps> = ({
     );
 };
 
-export default Parking2DKonva;
+export default React.memo(Parking2DKonva);

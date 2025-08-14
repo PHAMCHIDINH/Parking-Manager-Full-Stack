@@ -16,7 +16,6 @@ import {
     CardContent,
     CardActions,
     Divider,
-    IconButton,
     Chip,
     Alert,
     LinearProgress,
@@ -24,22 +23,9 @@ import {
     styled,
     alpha,
 } from "@mui/material";
-import {
-    PhotoCamera,
-    CameraAlt,
-    Person,
-    DirectionsCar,
-    Edit,
-    Save,
-    ArrowBack,
-    CheckCircle,
-    Error,
-    Upload,
-    Badge,
-} from "@mui/icons-material";
+import { CheckCircle, Error } from "@mui/icons-material";
 import API from "../api";
-import { useAuth } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 
 const vehicleOptions = ["Car", "Van", "Taxi", "Bus", "Police", "Government"];
 const baseURL = "http://localhost:8080";
@@ -47,7 +33,7 @@ const baseURL = "http://localhost:8080";
 // Styled Components - Sửa lại cho responsive đẹp hơn
 const ProfileContainer = styled(Container)(({ theme }) => ({
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundColor: theme.palette.background.default,
     padding: theme.spacing(2, 1), // Giảm padding để có nhiều không gian hơn
     display: 'flex',
     alignItems: 'flex-start', // Căn lên trên thay vì center
@@ -60,30 +46,18 @@ const ProfileContainer = styled(Container)(({ theme }) => ({
 const ProfileCard = styled(Paper)(({ theme }) => ({
     borderRadius: theme.spacing(3),
     padding: theme.spacing(3), // Giảm padding
-    background: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(20px)',
-    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.2)',
-    border: `1px solid ${alpha(theme.palette.common.white, 0.2)}`,
+    background: theme.palette.common.white,
+    boxShadow: theme.shadows[2],
+    border: `1px solid ${alpha(theme.palette.divider, 0.8)}`,
     position: 'relative',
     overflow: 'hidden',
     width: '100%',
     maxWidth: '100%', // Sử dụng toàn bộ chiều rộng
-    [theme.breakpoints.up('md')]: {
-        padding: theme.spacing(4),
-        maxWidth: '900px', // Tăng maxWidth cho desktop
-    },
+    [theme.breakpoints.up('md')]: { padding: theme.spacing(4), maxWidth: '900px' },
     [theme.breakpoints.up('lg')]: {
         maxWidth: '1000px', // Còn rộng hơn cho màn hình lớn
     },
-    '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '4px',
-        background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-    }
+    '&::before': { content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: '4px', backgroundColor: theme.palette.primary.main }
 }));
 
 const HeaderSection = styled(Box)(({ theme }) => ({
@@ -122,20 +96,9 @@ const StyledAvatar = styled(Avatar)(({ theme }) => ({
     }
 }));
 
-const VehicleTypeChip = styled(Chip)(({ theme }) => ({
-    borderRadius: theme.spacing(3),
-    padding: theme.spacing(1, 2),
-    background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
-    color: 'white',
-    fontWeight: 'bold',
-    '& .MuiChip-icon': {
-        color: 'white',
-    }
-}));
+const VehicleTypeChip = styled(Chip)(({ theme }) => ({ borderRadius: theme.spacing(3), padding: theme.spacing(1, 2) }));
 
 const UserProfile: React.FC = () => {
-    const { user } = useAuth();
-    const navigate = useNavigate();
     const [name, setName] = useState("");
     const [vehicleType, setVehicleType] = useState("");
     const [carInfo, setCarInfo] = useState("");
@@ -225,8 +188,8 @@ const UserProfile: React.FC = () => {
             setLicensePlateImage(null);
             
             setTimeout(() => setMessage(null), 5000);
-        } catch (err: any) {
-            setError(err.response?.data || "An error occurred");
+        } catch {
+            setError("An error occurred");
             setTimeout(() => setError(null), 5000);
         } finally {
             setLoading(false);
@@ -261,41 +224,16 @@ const UserProfile: React.FC = () => {
 
                 <HeaderSection>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                        <IconButton 
-                            onClick={() => navigate("/user")}
-                            sx={{ 
-                                background: alpha('#667eea', 0.1),
-                                '&:hover': { background: alpha('#667eea', 0.2) }
-                            }}
-                        >
-                            <ArrowBack sx={{ color: '#667eea' }} />
-                        </IconButton>
+                        <Box sx={{ width: 48 }} />
                         
-                        <Typography 
-                            variant="h4" 
-                            sx={{ 
-                                fontWeight: 'bold',
-                                background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
-                                backgroundClip: 'text',
-                                textFillColor: 'transparent',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                            }}
-                        >
-                            <Person sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
                             Edit Profile
                         </Typography>
                         
                         <Box sx={{ width: 48 }} /> {/* Spacer for center alignment */}
                     </Box>
 
-                    {vehicleType && (
-                        <VehicleTypeChip 
-                            icon={<DirectionsCar />} 
-                            label={vehicleType} 
-                            size="medium"
-                        />
-                    )}
+                    {vehicleType && <VehicleTypeChip label={vehicleType} size="medium" />}
                 </HeaderSection>
 
                 <Box component="form" onSubmit={handleSubmit}>
@@ -332,10 +270,7 @@ const UserProfile: React.FC = () => {
                         {/* Basic Information */}
                         <Card sx={{ borderRadius: 2, boxShadow: 3 }}>
                             <CardContent>
-                                <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
-                                    <Edit sx={{ mr: 1 }} />
-                                    Basic Information
-                                </Typography>
+                                <Typography variant="h6" sx={{ mb: 3 }}>Basic Information</Typography>
                                 
                                 <Stack spacing={3}>
                                     <TextField
@@ -344,9 +279,7 @@ const UserProfile: React.FC = () => {
                                         fullWidth
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        InputProps={{
-                                            startAdornment: <Person sx={{ mr: 1, color: 'text.secondary' }} />
-                                        }}
+                                        InputProps={{}}
                                         sx={{
                                             '& .MuiOutlinedInput-root': {
                                                 borderRadius: 2,
@@ -361,17 +294,13 @@ const UserProfile: React.FC = () => {
                                             value={vehicleType}
                                             label="Vehicle Type"
                                             onChange={(e) => setVehicleType(e.target.value)}
-                                            startAdornment={<DirectionsCar sx={{ mr: 1, color: 'text.secondary' }} />}
                                             sx={{
                                                 borderRadius: 2,
                                             }}
                                         >
                                             {vehicleOptions.map((option) => (
                                                 <MenuItem key={option} value={option}>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                                        <DirectionsCar sx={{ mr: 1, fontSize: 20 }} />
-                                                        {option}
-                                                    </Box>
+                                                    {option}
                                                 </MenuItem>
                                             ))}
                                         </Select>
@@ -399,10 +328,7 @@ const UserProfile: React.FC = () => {
                         {/* Images Section */}
                         <Card sx={{ borderRadius: 2, boxShadow: 3 }}>
                             <CardContent>
-                                <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
-                                    <PhotoCamera sx={{ mr: 1 }} />
-                                    Photos
-                                </Typography>
+                                <Typography variant="h6" sx={{ mb: 3 }}>Photos</Typography>
 
                                 <Stack spacing={4}>
                                     {/* Profile Image */}
@@ -432,7 +358,6 @@ const UserProfile: React.FC = () => {
                                                         <Button
                                                             variant="contained"
                                                             component="span"
-                                                            startIcon={<Upload />}
                                                             sx={{
                                                                 borderRadius: 3,
                                                                 textTransform: 'none',
@@ -489,7 +414,6 @@ const UserProfile: React.FC = () => {
                                                         <Button
                                                             variant="contained"
                                                             component="span"
-                                                            startIcon={<CameraAlt />}
                                                             sx={{
                                                                 borderRadius: 3,
                                                                 textTransform: 'none',
@@ -519,17 +443,15 @@ const UserProfile: React.FC = () => {
                                     size="large"
                                     fullWidth
                                     disabled={loading}
-                                    startIcon={loading ? null : <Save />}
+                                    startIcon={undefined}
                                     sx={{
                                         borderRadius: 3,
                                         py: 1.5,
                                         fontSize: '1.1rem',
                                         fontWeight: 'bold',
                                         textTransform: 'none',
-                                        background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
-                                        '&:hover': {
-                                            background: 'linear-gradient(45deg, #5a6fd8 30%, #6a4190 90%)',
-                                        },
+                                        backgroundColor: 'primary.main',
+                                        '&:hover': { backgroundColor: 'primary.dark' },
                                         '&:disabled': {
                                             background: 'rgba(0, 0, 0, 0.12)',
                                         }

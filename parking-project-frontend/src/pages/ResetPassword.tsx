@@ -1,7 +1,14 @@
 import React, { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Container, Box, Typography, TextField, Button } from "@mui/material";
+import { Container, Box, Typography, TextField, Button, Paper, styled } from "@mui/material";
 import API from "../api";
+
+const Card = styled(Paper)(({ theme }) => ({
+    padding: theme.spacing(4),
+    borderRadius: theme.spacing(1.5),
+    backgroundColor: '#fff',
+    border: '1px solid #e0e0e0'
+}));
 
 const ResetPassword: React.FC = () => {
     const [searchParams] = useSearchParams();
@@ -25,22 +32,21 @@ const ResetPassword: React.FC = () => {
         try {
             const response = await API.post("/auth/reset-password", { token, newPassword, confirmPassword });
             setMessage(response.data.message || "Password reset successfully");
-            // Redirect to login page after a short delay
-            setTimeout(() => {
-                navigate("/login");
-            }, 2000);
-        } catch (err: any) {
-            setError(err.response?.data.message || "An error occurred");
+            setTimeout(() => navigate("/login"), 1500);
+        } catch {
+            setError("An error occurred");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Container maxWidth="sm">
-            <Box sx={{ mt: 8, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <Typography variant="h4">Reset Password</Typography>
-                <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: "100%" }}>
+        <Container maxWidth="sm" sx={{ py: 8 }}>
+            <Card elevation={0}>
+                <Typography variant="h4" color="primary" sx={{ fontWeight: 700, textAlign: 'center' }}>
+                    Reset Password
+                </Typography>
+                <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
                     <TextField
                         label="New Password"
                         type="password"
@@ -71,11 +77,11 @@ const ResetPassword: React.FC = () => {
                             {message}
                         </Typography>
                     )}
-                    <Button type="submit" variant="contained" color="primary" fullWidth disabled={loading}>
+                    <Button type="submit" variant="contained" fullWidth disabled={loading}>
                         {loading ? "Resetting..." : "Reset Password"}
                     </Button>
                 </Box>
-            </Box>
+            </Card>
         </Container>
     );
 };

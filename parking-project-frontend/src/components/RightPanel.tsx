@@ -60,7 +60,7 @@ const FilterControls = styled(Box)(({ theme }) => ({
 const SpotCardsContainer = styled(Box)(({ theme }) => ({
     flex: 1,
     overflowY: "auto",
-    padding: theme.spacing(2),
+    padding: theme.spacing(1.5),
     background: 'transparent',
     '&::-webkit-scrollbar': {
         width: '8px',
@@ -81,7 +81,7 @@ const SpotCardsContainer = styled(Box)(({ theme }) => ({
 const SpotCard = styled(Card, {
     shouldForwardProp: (prop) => prop !== 'isSelected' && prop !== 'occupied'
 })<{ isSelected?: boolean; occupied?: boolean }>(({ theme, isSelected, occupied }) => ({
-    margin: theme.spacing(1, 0),
+    margin: theme.spacing(0.75, 0),
     borderRadius: theme.shape.borderRadius,
     transition: "box-shadow 0.2s ease, transform 0.15s ease",
     border: isSelected
@@ -89,7 +89,7 @@ const SpotCard = styled(Card, {
         : `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.paper,
     color: theme.palette.text.primary,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
     position: 'relative',
     overflow: 'hidden',
     cursor: 'pointer',
@@ -187,10 +187,11 @@ const RightPanel: React.FC<RightPanelProps> = ({
                         <Typography variant="h6" sx={{ fontWeight: 700, flex: 1 }}>
                             Parking Spots
                         </Typography>
-                        <Box sx={{ display: 'flex', gap: 1.5 }}>
+                        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                             <Chip label={`Total: ${statistics.total}`} variant="outlined" size="small" />
                             <Chip label={`Free: ${statistics.available}`} color="success" variant="outlined" size="small" />
                             <Chip label={`Busy: ${statistics.occupied}`} color="error" variant="outlined" size="small" />
+                            <Chip label={`Occ: ${statistics.total ? Math.round((statistics.occupied / statistics.total) * 100) : 0}%`} size="small" />
                         </Box>
                     </Box>
                     
@@ -255,7 +256,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
                                                 sx={{ width: "100%" }}
                                                 onClick={() => handleSpotClick(spot.spot_id)}
                                             >
-                                                <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                                                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                                                     <Box
                                                         display="flex"
                                                         justifyContent="space-between"

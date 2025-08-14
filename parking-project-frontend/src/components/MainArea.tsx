@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Typography, styled } from '@mui/material';
 import Parking2DKonva from './Parking2DKonva';
 import { SpotRecord } from '../types';
@@ -12,8 +12,9 @@ const KonvaHeader = styled(Box)(({ theme }) => ({
 }));
 
 const KanvaWrapper = styled(Box)(({ theme }) => ({
-    width: 1200,
-    height: 800,
+    width: '100%',
+    maxWidth: 1400,
+    aspectRatio: '3 / 2',
     backgroundColor: theme.palette.grey[100],
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
@@ -23,8 +24,8 @@ const KanvaWrapper = styled(Box)(({ theme }) => ({
 }));
 
 const StyledKonvaContainer = styled(Box)(({ theme }) => ({
-    width: 1160,
-    height: 760,
+    width: '96%',
+    height: '92%',
     border: `1px solid ${theme.palette.divider}`,
 }));
 
@@ -39,6 +40,11 @@ const MainArea: React.FC<MainAreaProps> = ({
                                                selectedSpotId,
                                                onSpotSelect
                                            }) => {
+    const dims = useMemo(() => {
+        // Maintain 3:2 aspect within container
+        return { width: 1160, height: 760 };
+    }, []);
+
     return (
         <Box
             sx={{
@@ -52,9 +58,7 @@ const MainArea: React.FC<MainAreaProps> = ({
             }}
         >
             <KonvaHeader>
-                <Typography variant="subtitle2" color="text.secondary">
-                    Select or filter parking spots using the side panels, or click on a spot in the map.
-                </Typography>
+                <Typography variant="subtitle2" color="text.secondary">Chọn vị trí trên bản đồ hoặc dùng bộ lọc ở panel bên.</Typography>
             </KonvaHeader>
             <KanvaWrapper>
                 <StyledKonvaContainer>
@@ -62,8 +66,8 @@ const MainArea: React.FC<MainAreaProps> = ({
                         spots={spots}
                         selectedSpotId={selectedSpotId}
                         onSpotSelect={onSpotSelect}
-                        width={1160}
-                        height={760}
+                        width={dims.width}
+                        height={dims.height}
                     />
                 </StyledKonvaContainer>
             </KanvaWrapper>
@@ -71,4 +75,4 @@ const MainArea: React.FC<MainAreaProps> = ({
     );
 };
 
-export default MainArea;
+export default React.memo(MainArea);
